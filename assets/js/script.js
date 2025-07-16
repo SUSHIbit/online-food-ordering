@@ -1,8 +1,8 @@
 /**
  * Main JavaScript File
- * Online Food Ordering System - Phase 1
+ * Online Food Ordering System - Fixed Version
  * 
- * Contains basic functionality for the application
+ * Contains all functionality for the application
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -13,6 +13,14 @@ document.addEventListener('DOMContentLoaded', function() {
     initAlertHandlers();
     initPasswordToggle();
     initConfirmDialogs();
+    
+    // Initialize menu-specific functionality
+    if (document.querySelector('.menu-page')) {
+        initMenuFunctionality();
+    }
+    
+    // Initialize cart count
+    updateCartCount();
 });
 
 /**
@@ -77,8 +85,6 @@ function initFormValidation() {
 
 /**
  * Validate entire form
- * @param {HTMLFormElement} form Form element
- * @returns {boolean} True if valid, false otherwise
  */
 function validateForm(form) {
     let isValid = true;
@@ -95,8 +101,6 @@ function validateForm(form) {
 
 /**
  * Validate individual field
- * @param {HTMLElement} field Form field element
- * @returns {boolean} True if valid, false otherwise
  */
 function validateField(field) {
     const value = field.value.trim();
@@ -155,8 +159,6 @@ function validateField(field) {
 
 /**
  * Show field error
- * @param {HTMLElement} field Form field
- * @param {string} message Error message
  */
 function showFieldError(field, message) {
     field.classList.add('error');
@@ -180,7 +182,6 @@ function showFieldError(field, message) {
 
 /**
  * Clear field error
- * @param {HTMLElement} field Form field
  */
 function clearFieldError(field) {
     field.classList.remove('error');
@@ -193,8 +194,6 @@ function clearFieldError(field) {
 
 /**
  * Validate email format
- * @param {string} email Email address
- * @returns {boolean} True if valid, false otherwise
  */
 function isValidEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -203,8 +202,6 @@ function isValidEmail(email) {
 
 /**
  * Validate phone number
- * @param {string} phone Phone number
- * @returns {boolean} True if valid, false otherwise
  */
 function isValidPhone(phone) {
     const phoneRegex = /^[0-9+\-\s()]{10,20}$/;
@@ -259,7 +256,6 @@ function initModalHandlers() {
 
 /**
  * Open modal
- * @param {string} modalId Modal ID
  */
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -271,7 +267,6 @@ function openModal(modalId) {
 
 /**
  * Close modal
- * @param {string} modalId Modal ID
  */
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -319,7 +314,6 @@ function initAlertHandlers() {
 
 /**
  * Hide alert
- * @param {HTMLElement} alert Alert element
  */
 function hideAlert(alert) {
     alert.style.opacity = '0';
@@ -335,8 +329,6 @@ function hideAlert(alert) {
 
 /**
  * Show alert programmatically
- * @param {string} message Alert message
- * @param {string} type Alert type (success, error, info, warning)
  */
 function showAlert(message, type = 'info') {
     const alertDiv = document.createElement('div');
@@ -549,6 +541,209 @@ function throttle(func, limit) {
     };
 }
 
+/**
+ * MENU PAGE FUNCTIONALITY - Phase 3
+ */
+function initMenuFunctionality() {
+    // Add to cart functionality (SINGLE EVENT LISTENER)
+    const addToCartButtons = document.querySelectorAll('.add-to-cart');
+    addToCartButtons.forEach(button => {
+        // Remove any existing listeners to prevent duplicates
+        button.replaceWith(button.cloneNode(true));
+    });
+    
+    // Re-select buttons after cloning
+    const freshAddToCartButtons = document.querySelectorAll('.add-to-cart');
+    freshAddToCartButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const itemId = button.getAttribute('data-item-id');
+            const itemName = button.getAttribute('data-item-name');
+            const itemPrice = button.getAttribute('data-item-price');
+            
+            // Show loading state
+            showLoading(button);
+            
+            // Add to cart via AJAX
+            addToCartAjax(itemId, 1, button);
+        });
+    });
+    
+    // View details functionality
+    const viewDetailsButtons = document.querySelectorAll('.view-details');
+    viewDetailsButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const itemId = button.getAttribute('data-item-id');
+            loadItemDetails(itemId);
+        });
+    });
+    
+    // Auto-submit form on filter change
+    const filterSelects = document.querySelectorAll('#category, #price_range');
+    filterSelects.forEach(select => {
+        select.addEventListener('change', function() {
+            document.querySelector('.filter-form').submit();
+        });
+    });
+    
+    // Search input with debounce
+    const searchInput = document.getElementById('search');
+    if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                if (searchInput.value.length >= 3 || searchInput.value.length === 0) {
+                    document.querySelector('.filter-form').submit();
+                }
+            }, 500);
+        });
+    }
+}
+
+/**
+ * Add to cart AJAX function
+ */
+function addToCartAjax(itemId, quantity, button) {
+    const formData = new FormData();
+    formData.append('csrf_token', getCSRFToken());
+    formData.append('item_id', itemId);
+    formData.append('quantity', quantity);
+    
+    fetch('ajax_add_to_cart.php', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading(button);
+        
+        if (data.success) {
+            // Show success message
+            showAlert(data.message, 'success');
+            
+            // Update cart count
+            updateCartCountDisplay(data.cart_count);
+            
+            // Add success animation
+            button.classList.add('success-animation');
+            setTimeout(() => {
+                button.classList.remove('success-animation');
+            }, 600);
+        } else {
+            showAlert(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        hideLoading(button);
+        showAlert('Failed to add item to cart. Please try again.', 'error');
+        console.error('Error:', error);
+    });
+}
+
+/**
+ * Get CSRF token
+ */
+function getCSRFToken() {
+    // Try to get from meta tag first
+    const metaToken = document.querySelector('meta[name="csrf-token"]');
+    if (metaToken) {
+        return metaToken.getAttribute('content');
+    }
+    
+    // Try to get from form
+    const tokenInput = document.querySelector('input[name="csrf_token"]');
+    if (tokenInput) {
+        return tokenInput.value;
+    }
+    
+    return 'temp_csrf_token';
+}
+
+/**
+ * Update cart count display
+ */
+function updateCartCountDisplay(count) {
+    const cartCountElement = document.getElementById('cart-count');
+    if (cartCountElement) {
+        if (count > 0) {
+            cartCountElement.textContent = count;
+            cartCountElement.classList.add('has-items');
+        } else {
+            cartCountElement.classList.remove('has-items');
+        }
+    }
+}
+
+/**
+ * Update cart count from server
+ */
+function updateCartCount() {
+    fetch('../ajax/get_cart_count.php', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateCartCountDisplay(data.count);
+        }
+    })
+    .catch(error => {
+        console.error('Error updating cart count:', error);
+    });
+}
+
+/**
+ * Load item details modal
+ */
+function loadItemDetails(itemId) {
+    const modal = document.getElementById('item-details-modal');
+    const content = document.getElementById('item-details-content');
+    
+    if (!modal || !content) return;
+    
+    // Show loading state
+    content.innerHTML = '<div class="spinner"></div>';
+    openModal('item-details-modal');
+    
+    // Fetch item details
+    ajaxRequest('../ajax/get_item_details.php', 'POST', { item_id: itemId })
+        .then(response => {
+            if (response.success) {
+                content.innerHTML = response.html;
+                
+                // Bind add to cart button in modal
+                const addToCartBtn = content.querySelector('.add-to-cart-modal');
+                if (addToCartBtn) {
+                    addToCartBtn.addEventListener('click', function() {
+                        const itemId = addToCartBtn.getAttribute('data-item-id');
+                        
+                        addToCartAjax(itemId, 1, addToCartBtn);
+                        
+                        // Close modal after adding
+                        setTimeout(() => {
+                            closeModal('item-details-modal');
+                        }, 1000);
+                    });
+                }
+            } else {
+                content.innerHTML = '<div class="alert alert-error">Failed to load item details.</div>';
+            }
+        })
+        .catch(error => {
+            content.innerHTML = '<div class="alert alert-error">Error loading item details.</div>';
+            console.error('Error loading item details:', error);
+        });
+}
+
 // Export functions for global use
 window.FoodOrderingApp = {
     showAlert,
@@ -564,934 +759,3 @@ window.FoodOrderingApp = {
     debounce,
     throttle
 };
-
-/**
- * Enhanced JavaScript - Phase 2
- * Online Food Ordering System - Menu System
- * 
- * Additional functionality for menu display and management
- */
-
-// Menu System Object
-const MenuSystem = {
-    // Search functionality
-    searchDelay: 500,
-    searchTimer: null,
-    
-    // Filter state
-    activeFilters: {
-        search: '',
-        category: '',
-        priceRange: '',
-        sortBy: 'name'
-    },
-    
-    // Loading states
-    isLoading: false,
-    
-    // Initialize menu system
-    init() {
-        this.bindEvents();
-        this.loadMenuItems();
-        this.initializeFilters();
-        this.setupInfiniteScroll();
-    },
-    
-    // Bind all event listeners
-    bindEvents() {
-        // Search functionality
-        const searchInput = document.getElementById('search');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.handleSearch(e.target.value);
-            });
-        }
-        
-        // Filter changes
-        const categoryFilter = document.getElementById('category');
-        const priceRangeFilter = document.getElementById('price_range');
-        
-        if (categoryFilter) {
-            categoryFilter.addEventListener('change', (e) => {
-                this.handleFilterChange('category', e.target.value);
-            });
-        }
-        
-        if (priceRangeFilter) {
-            priceRangeFilter.addEventListener('change', (e) => {
-                this.handleFilterChange('priceRange', e.target.value);
-            });
-        }
-        
-        // Category tabs
-        const categoryTabs = document.querySelectorAll('.category-tab');
-        categoryTabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.handleCategoryTab(tab);
-            });
-        });
-        
-        // Menu item actions
-        this.bindMenuItemEvents();
-        
-        // View details modal
-        this.bindViewDetailsEvents();
-        
-        // Admin actions
-        this.bindAdminEvents();
-    },
-    
-    // Handle search input
-    handleSearch(searchTerm) {
-        clearTimeout(this.searchTimer);
-        this.activeFilters.search = searchTerm;
-        
-        this.searchTimer = setTimeout(() => {
-            this.filterMenuItems();
-        }, this.searchDelay);
-    },
-    
-    // Handle filter changes
-    handleFilterChange(filterType, value) {
-        this.activeFilters[filterType] = value;
-        this.filterMenuItems();
-    },
-    
-    // Handle category tab clicks
-    handleCategoryTab(tab) {
-        // Remove active class from all tabs
-        document.querySelectorAll('.category-tab').forEach(t => {
-            t.classList.remove('active');
-        });
-        
-        // Add active class to clicked tab
-        tab.classList.add('active');
-        
-        // Get category ID
-        const categoryId = tab.getAttribute('href').split('category=')[1] || '';
-        this.handleFilterChange('category', categoryId);
-    },
-    
-    // Bind menu item events
-    bindMenuItemEvents() {
-        // Add to cart buttons
-        const addToCartButtons = document.querySelectorAll('.add-to-cart');
-        addToCartButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                this.handleAddToCart(button);
-            });
-        });
-        
-        // View details buttons
-        const viewDetailsButtons = document.querySelectorAll('.view-details');
-        viewDetailsButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                this.handleViewDetails(button);
-            });
-        });
-        
-        // Menu item hover effects
-        const menuItems = document.querySelectorAll('.menu-item');
-        menuItems.forEach(item => {
-            item.addEventListener('mouseenter', (e) => {
-                this.handleMenuItemHover(item, true);
-            });
-            
-            item.addEventListener('mouseleave', (e) => {
-                this.handleMenuItemHover(item, false);
-            });
-        });
-    },
-    
-    // Handle add to cart
-    handleAddToCart(button) {
-        const itemId = button.getAttribute('data-item-id');
-        const itemName = button.getAttribute('data-item-name');
-        const itemPrice = button.getAttribute('data-item-price');
-        
-        // Show loading state
-        FoodOrderingApp.showLoading(button);
-        
-        // Simulate API call (will be implemented in Phase 3)
-        setTimeout(() => {
-            FoodOrderingApp.hideLoading(button);
-            
-            // Show success message
-            FoodOrderingApp.showAlert(`${itemName} will be added to cart in Phase 3!`, 'info');
-            
-            // Add success animation
-            button.classList.add('success-animation');
-            setTimeout(() => {
-                button.classList.remove('success-animation');
-            }, 600);
-        }, 1000);
-    },
-    
-    // Handle view details
-    handleViewDetails(button) {
-        const itemId = button.getAttribute('data-item-id');
-        this.loadItemDetails(itemId);
-    },
-    
-    // Handle menu item hover
-    handleMenuItemHover(item, isHovering) {
-        const image = item.querySelector('.menu-item-image');
-        const overlay = item.querySelector('.menu-item-overlay');
-        
-        if (isHovering) {
-            item.classList.add('hovered');
-            if (image) image.style.transform = 'scale(1.05)';
-            if (overlay) overlay.style.opacity = '1';
-        } else {
-            item.classList.remove('hovered');
-            if (image) image.style.transform = 'scale(1)';
-            if (overlay) overlay.style.opacity = '0';
-        }
-    },
-    
-    // Load item details
-    loadItemDetails(itemId) {
-        const modal = document.getElementById('item-details-modal');
-        const content = document.getElementById('item-details-content');
-        
-        if (!modal || !content) return;
-        
-        // Show loading state
-        content.innerHTML = '<div class="spinner"></div>';
-        FoodOrderingApp.openModal('item-details-modal');
-        
-        // Fetch item details
-        FoodOrderingApp.ajaxRequest('ajax/get_item_details.php', 'POST', { item_id: itemId })
-            .then(response => {
-                if (response.success) {
-                    content.innerHTML = response.html;
-                    this.bindModalEvents();
-                } else {
-                    content.innerHTML = '<div class="alert alert-error">Failed to load item details.</div>';
-                }
-            })
-            .catch(error => {
-                content.innerHTML = '<div class="alert alert-error">Error loading item details.</div>';
-                console.error('Error loading item details:', error);
-            });
-    },
-    
-    // Bind modal events
-    bindModalEvents() {
-        const addToCartBtn = document.querySelector('.add-to-cart-modal');
-        if (addToCartBtn) {
-            addToCartBtn.addEventListener('click', (e) => {
-                this.handleAddToCart(addToCartBtn);
-            });
-        }
-    },
-    
-    // Filter menu items
-    filterMenuItems() {
-        if (this.isLoading) return;
-        
-        this.isLoading = true;
-        this.showLoadingState();
-        
-        // Build query parameters
-        const params = new URLSearchParams();
-        Object.keys(this.activeFilters).forEach(key => {
-            if (this.activeFilters[key]) {
-                params.append(key, this.activeFilters[key]);
-            }
-        });
-        
-        // Simulate API call for filtering
-        setTimeout(() => {
-            this.hideLoadingState();
-            this.isLoading = false;
-            
-            // For now, just submit the form
-            const form = document.querySelector('.filter-form');
-            if (form) {
-                form.submit();
-            }
-        }, 500);
-    },
-    
-    // Show loading state
-    showLoadingState() {
-        const menuGrid = document.querySelector('.menu-grid');
-        if (menuGrid) {
-            menuGrid.innerHTML = this.generateSkeletonHTML();
-        }
-    },
-    
-    // Hide loading state
-    hideLoadingState() {
-        // This would be handled by the actual menu items rendering
-    },
-    
-    // Generate skeleton HTML for loading
-    generateSkeletonHTML() {
-        let skeletonHTML = '<div class="menu-loading">';
-        for (let i = 0; i < 6; i++) {
-            skeletonHTML += `
-                <div class="menu-item-skeleton">
-                    <div class="skeleton-image"></div>
-                    <div class="skeleton-text"></div>
-                    <div class="skeleton-text short"></div>
-                    <div class="skeleton-text"></div>
-                </div>
-            `;
-        }
-        skeletonHTML += '</div>';
-        return skeletonHTML;
-    },
-    
-    // Initialize filters from URL
-    initializeFilters() {
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        this.activeFilters.search = urlParams.get('search') || '';
-        this.activeFilters.category = urlParams.get('category') || '';
-        this.activeFilters.priceRange = urlParams.get('price_range') || '';
-        
-        // Update form fields
-        const searchInput = document.getElementById('search');
-        const categorySelect = document.getElementById('category');
-        const priceRangeSelect = document.getElementById('price_range');
-        
-        if (searchInput) searchInput.value = this.activeFilters.search;
-        if (categorySelect) categorySelect.value = this.activeFilters.category;
-        if (priceRangeSelect) priceRangeSelect.value = this.activeFilters.priceRange;
-    },
-    
-    // Load menu items
-    loadMenuItems() {
-        const menuItems = document.querySelectorAll('.menu-item');
-        
-        // Add fade-in animation to menu items
-        menuItems.forEach((item, index) => {
-            item.style.opacity = '0';
-            item.style.transform = 'translateY(20px)';
-            
-            setTimeout(() => {
-                item.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-                item.style.opacity = '1';
-                item.style.transform = 'translateY(0)';
-            }, index * 100);
-        });
-    },
-    
-    // Setup infinite scroll
-    setupInfiniteScroll() {
-        const options = {
-            root: null,
-            rootMargin: '200px',
-            threshold: 0.1
-        };
-        
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    this.loadMoreItems();
-                }
-            });
-        }, options);
-        
-        const loadMoreTrigger = document.querySelector('.load-more-trigger');
-        if (loadMoreTrigger) {
-            observer.observe(loadMoreTrigger);
-        }
-    },
-    
-    // Load more items (for infinite scroll)
-    loadMoreItems() {
-        // Placeholder for infinite scroll implementation
-        console.log('Loading more items...');
-    },
-    
-    // Bind admin events
-    bindAdminEvents() {
-        // Toggle availability
-        const toggleButtons = document.querySelectorAll('.toggle-availability');
-        toggleButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.handleToggleAvailability(button);
-            });
-        });
-        
-        // Delete confirmations
-        const deleteButtons = document.querySelectorAll('.delete-item');
-        deleteButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                if (!confirm('Are you sure you want to delete this item?')) {
-                    e.preventDefault();
-                }
-            });
-        });
-        
-        // Image preview
-        const imageInputs = document.querySelectorAll('input[type="file"]');
-        imageInputs.forEach(input => {
-            input.addEventListener('change', (e) => {
-                this.handleImagePreview(e);
-            });
-        });
-        
-        // Form validation
-        const forms = document.querySelectorAll('form[data-validate]');
-        forms.forEach(form => {
-            form.addEventListener('submit', (e) => {
-                if (!this.validateForm(form)) {
-                    e.preventDefault();
-                }
-            });
-        });
-    },
-    
-    // Handle toggle availability
-    handleToggleAvailability(button) {
-        const itemId = button.getAttribute('data-item-id');
-        const currentStatus = button.getAttribute('data-current-status');
-        
-        FoodOrderingApp.showLoading(button);
-        
-        // Simulate API call
-        setTimeout(() => {
-            FoodOrderingApp.hideLoading(button);
-            
-            // Update button text and status
-            if (currentStatus === 'available') {
-                button.textContent = '▶️ Enable';
-                button.setAttribute('data-current-status', 'unavailable');
-                button.classList.remove('btn-warning');
-                button.classList.add('btn-success');
-            } else {
-                button.textContent = '⏸️ Disable';
-                button.setAttribute('data-current-status', 'available');
-                button.classList.remove('btn-success');
-                button.classList.add('btn-warning');
-            }
-            
-            FoodOrderingApp.showAlert('Item availability updated!', 'success');
-        }, 1000);
-    },
-    
-    // Handle image preview
-    handleImagePreview(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            // Remove existing preview
-            const existingPreview = event.target.parentNode.querySelector('.image-preview');
-            if (existingPreview) {
-                existingPreview.remove();
-            }
-            
-            // Create new preview
-            const preview = document.createElement('div');
-            preview.className = 'image-preview';
-            preview.innerHTML = `
-                <img src="${e.target.result}" alt="Preview" class="preview-image">
-                <p class="text-slate-500">Preview</p>
-            `;
-            
-            event.target.parentNode.appendChild(preview);
-        };
-        
-        reader.readAsDataURL(file);
-    },
-    
-    // Validate form
-    validateForm(form) {
-        const requiredFields = form.querySelectorAll('[required]');
-        let isValid = true;
-        
-        requiredFields.forEach(field => {
-            if (!field.value.trim()) {
-                this.showFieldError(field, 'This field is required');
-                isValid = false;
-            } else {
-                this.clearFieldError(field);
-            }
-        });
-        
-        // Validate price fields
-        const priceFields = form.querySelectorAll('input[type="number"][name="price"]');
-        priceFields.forEach(field => {
-            const value = parseFloat(field.value);
-            if (value <= 0) {
-                this.showFieldError(field, 'Price must be greater than 0');
-                isValid = false;
-            }
-        });
-        
-        return isValid;
-    },
-    
-    // Show field error
-    showFieldError(field, message) {
-        field.classList.add('error');
-        
-        const existingError = field.parentNode.querySelector('.field-error');
-        if (existingError) {
-            existingError.remove();
-        }
-        
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'field-error';
-        errorDiv.textContent = message;
-        field.parentNode.appendChild(errorDiv);
-    },
-    
-    // Clear field error
-    clearFieldError(field) {
-        field.classList.remove('error');
-        
-        const errorMessage = field.parentNode.querySelector('.field-error');
-        if (errorMessage) {
-            errorMessage.remove();
-        }
-    }
-};
-
-// Cart functionality (placeholder for Phase 3)
-const Cart = {
-    items: [],
-    total: 0,
-    
-    // Add item to cart
-    addItem(itemId, itemName, itemPrice, quantity = 1) {
-        const existingItem = this.items.find(item => item.id === itemId);
-        
-        if (existingItem) {
-            existingItem.quantity += quantity;
-        } else {
-            this.items.push({
-                id: itemId,
-                name: itemName,
-                price: parseFloat(itemPrice),
-                quantity: quantity
-            });
-        }
-        
-        this.updateTotal();
-        this.updateCartDisplay();
-        this.saveToStorage();
-    },
-    
-    // Remove item from cart
-    removeItem(itemId) {
-        this.items = this.items.filter(item => item.id !== itemId);
-        this.updateTotal();
-        this.updateCartDisplay();
-        this.saveToStorage();
-    },
-    
-    // Update item quantity
-    updateQuantity(itemId, quantity) {
-        const item = this.items.find(item => item.id === itemId);
-        if (item) {
-            item.quantity = quantity;
-            this.updateTotal();
-            this.updateCartDisplay();
-            this.saveToStorage();
-        }
-    },
-    
-    // Update total
-    updateTotal() {
-        this.total = this.items.reduce((sum, item) => {
-            return sum + (item.price * item.quantity);
-        }, 0);
-    },
-    
-    // Update cart display
-    updateCartDisplay() {
-        const cartCount = document.getElementById('cart-count');
-        const totalItems = this.items.reduce((sum, item) => sum + item.quantity, 0);
-        
-        if (cartCount) {
-            if (totalItems > 0) {
-                cartCount.textContent = totalItems;
-                cartCount.classList.add('has-items');
-            } else {
-                cartCount.classList.remove('has-items');
-            }
-        }
-    },
-    
-    // Save to storage
-    saveToStorage() {
-        // Note: localStorage is not available in artifacts, so this is a placeholder
-        // In a real implementation, this would save to localStorage
-        console.log('Cart saved:', this.items);
-    },
-    
-    // Load from storage
-    loadFromStorage() {
-        // Note: localStorage is not available in artifacts, so this is a placeholder
-        // In a real implementation, this would load from localStorage
-        console.log('Cart loaded');
-    },
-    
-    // Clear cart
-    clear() {
-        this.items = [];
-        this.total = 0;
-        this.updateCartDisplay();
-        this.saveToStorage();
-    }
-};
-
-// Admin Dashboard functionality
-const AdminDashboard = {
-    init() {
-        this.bindEvents();
-        this.loadStatistics();
-        this.setupCharts();
-    },
-    
-    bindEvents() {
-        // Quick actions
-        const quickActions = document.querySelectorAll('.quick-action');
-        quickActions.forEach(action => {
-            action.addEventListener('click', (e) => {
-                this.handleQuickAction(action);
-            });
-        });
-        
-        // Bulk actions
-        const bulkActionButtons = document.querySelectorAll('.bulk-action');
-        bulkActionButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                this.handleBulkAction(button);
-            });
-        });
-        
-        // Export functionality
-        const exportButtons = document.querySelectorAll('.export-btn');
-        exportButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                this.handleExport(button);
-            });
-        });
-    },
-    
-    handleQuickAction(action) {
-        const actionType = action.getAttribute('data-action');
-        
-        switch (actionType) {
-            case 'add-item':
-                FoodOrderingApp.openModal('add-item-modal');
-                break;
-            case 'add-category':
-                FoodOrderingApp.openModal('add-category-modal');
-                break;
-            case 'view-orders':
-                window.location.href = 'admin-orders.php';
-                break;
-            default:
-                console.log('Unknown action:', actionType);
-        }
-    },
-    
-    handleBulkAction(button) {
-        const action = button.getAttribute('data-bulk-action');
-        const selectedItems = document.querySelectorAll('.item-checkbox:checked');
-        
-        if (selectedItems.length === 0) {
-            FoodOrderingApp.showAlert('Please select items first', 'warning');
-            return;
-        }
-        
-        if (confirm(`Are you sure you want to ${action} ${selectedItems.length} item(s)?`)) {
-            // Simulate bulk action
-            FoodOrderingApp.showLoading(button);
-            
-            setTimeout(() => {
-                FoodOrderingApp.hideLoading(button);
-                FoodOrderingApp.showAlert(`${action} completed successfully!`, 'success');
-                
-                // Refresh page or update items
-                location.reload();
-            }, 2000);
-        }
-    },
-    
-    handleExport(button) {
-        const exportType = button.getAttribute('data-export-type');
-        
-        FoodOrderingApp.showLoading(button);
-        
-        // Simulate export
-        setTimeout(() => {
-            FoodOrderingApp.hideLoading(button);
-            FoodOrderingApp.showAlert(`${exportType} export completed!`, 'success');
-            
-            // In a real implementation, this would trigger a file download
-            this.downloadFile(`${exportType}-export.csv`, 'text/csv', 'Sample,CSV,Data\n1,2,3');
-        }, 2000);
-    },
-    
-    downloadFile(filename, contentType, content) {
-        const blob = new Blob([content], { type: contentType });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    },
-    
-    loadStatistics() {
-        // Animate statistics counters
-        const counters = document.querySelectorAll('.stat-number');
-        counters.forEach(counter => {
-            const target = parseInt(counter.textContent);
-            const increment = target / 100;
-            let current = 0;
-            
-            const timer = setInterval(() => {
-                current += increment;
-                if (current >= target) {
-                    counter.textContent = target;
-                    clearInterval(timer);
-                } else {
-                    counter.textContent = Math.ceil(current);
-                }
-            }, 20);
-        });
-    },
-    
-    setupCharts() {
-        // Placeholder for chart initialization
-        // In a real implementation, this would use Chart.js or similar
-        console.log('Charts initialized');
-    }
-};
-
-// Utility functions
-const Utils = {
-    // Format currency
-    formatCurrency(amount) {
-        return 'RM ' + parseFloat(amount).toFixed(2);
-    },
-    
-    // Format date
-    formatDate(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-MY', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    },
-    
-    // Format time
-    formatTime(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleTimeString('en-MY', {
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    },
-    
-    // Debounce function
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    },
-    
-    // Throttle function
-    throttle(func, limit) {
-        let inThrottle;
-        return function() {
-            const args = arguments;
-            const context = this;
-            if (!inThrottle) {
-                func.apply(context, args);
-                inThrottle = true;
-                setTimeout(() => inThrottle = false, limit);
-            }
-        };
-    },
-    
-    // Generate random ID
-    generateId() {
-        return Date.now().toString(36) + Math.random().toString(36).substr(2);
-    },
-    
-    // Validate email
-    validateEmail(email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-    },
-    
-    // Validate phone
-    validatePhone(phone) {
-        const phoneRegex = /^[0-9+\-\s()]{10,20}$/;
-        return phoneRegex.test(phone);
-    },
-    
-    // Sanitize HTML
-    sanitizeHTML(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    },
-    
-    // Copy to clipboard
-    copyToClipboard(text) {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text).then(() => {
-                FoodOrderingApp.showAlert('Copied to clipboard!', 'success');
-            });
-        } else {
-            // Fallback for older browsers
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-            FoodOrderingApp.showAlert('Copied to clipboard!', 'success');
-        }
-    },
-    
-    // Get URL parameters
-    getUrlParams() {
-        const params = {};
-        const urlParams = new URLSearchParams(window.location.search);
-        for (const [key, value] of urlParams.entries()) {
-            params[key] = value;
-        }
-        return params;
-    },
-    
-    // Update URL without reload
-    updateUrl(params) {
-        const url = new URL(window.location);
-        Object.keys(params).forEach(key => {
-            if (params[key]) {
-                url.searchParams.set(key, params[key]);
-            } else {
-                url.searchParams.delete(key);
-            }
-        });
-        window.history.pushState({}, '', url);
-    }
-};
-
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize menu system
-    if (document.querySelector('.menu-page')) {
-        MenuSystem.init();
-    }
-    
-    // Initialize admin dashboard
-    if (document.querySelector('.admin-page')) {
-        AdminDashboard.init();
-    }
-    
-    // Initialize cart
-    Cart.loadFromStorage();
-    
-    // Global event listeners
-    document.addEventListener('click', function(e) {
-        // Close dropdowns when clicking outside
-        if (!e.target.closest('.dropdown')) {
-            const dropdowns = document.querySelectorAll('.dropdown-menu.show');
-            dropdowns.forEach(dropdown => {
-                dropdown.classList.remove('show');
-            });
-        }
-        
-        // Handle dropdown toggles
-        if (e.target.closest('.dropdown-toggle')) {
-            e.preventDefault();
-            const dropdown = e.target.closest('.dropdown');
-            const menu = dropdown.querySelector('.dropdown-menu');
-            menu.classList.toggle('show');
-        }
-    });
-    
-    // Handle form submissions
-    document.addEventListener('submit', function(e) {
-        const form = e.target;
-        if (form.hasAttribute('data-async')) {
-            e.preventDefault();
-            handleAsyncForm(form);
-        }
-    });
-    
-    // Handle keyboard navigation
-    document.addEventListener('keydown', function(e) {
-        // Close modals with Escape key
-        if (e.key === 'Escape') {
-            const activeModal = document.querySelector('.modal.active');
-            if (activeModal) {
-                FoodOrderingApp.closeModal(activeModal.id);
-            }
-        }
-        
-        // Search shortcut (Ctrl/Cmd + K)
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-            e.preventDefault();
-            const searchInput = document.getElementById('search');
-            if (searchInput) {
-                searchInput.focus();
-            }
-        }
-    });
-});
-
-// Handle async forms
-function handleAsyncForm(form) {
-    const submitBtn = form.querySelector('button[type="submit"]');
-    const formData = new FormData(form);
-    
-    FoodOrderingApp.showLoading(submitBtn);
-    
-    fetch(form.action, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        FoodOrderingApp.hideLoading(submitBtn);
-        
-        if (data.success) {
-            FoodOrderingApp.showAlert(data.message, 'success');
-            if (data.redirect) {
-                setTimeout(() => {
-                    window.location.href = data.redirect;
-                }, 1000);
-            }
-        } else {
-            FoodOrderingApp.showAlert(data.message, 'error');
-        }
-    })
-    .catch(error => {
-        FoodOrderingApp.hideLoading(submitBtn);
-        FoodOrderingApp.showAlert('An error occurred. Please try again.', 'error');
-        console.error('Form submission error:', error);
-    });
-}
-
-// Export to global scope
-window.MenuSystem = MenuSystem;
-window.Cart = Cart;
-window.AdminDashboard = AdminDashboard;
-window.Utils = Utils;

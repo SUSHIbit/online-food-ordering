@@ -805,4 +805,331 @@ function uploadMenuImage($file) {
     
     return uploadFile($file, 'assets/images/menu/');
 }
+
+/**
+ * Cart Functions - Add to functions.php
+ * Online Food Ordering System - Phase 3
+ * 
+ * Shopping cart management functions
+ */
+
+/**
+ * Add item to cart
+ * @param int $itemId Item ID
+ * @param int $quantity Quantity to add
+ * @return bool True if successful
+ */
+function addToCart($itemId, $quantity = 1) {
+    if (!isset($_SESSION['cart'])) {
+        $_SESSION['cart'] = [];
+    }
+    
+    // Check if item exists and is available
+    $item = getMenuItemById($itemId);
+    if (!$item || $item['availability'] !== 'available') {
+        return false;
+    }
+    
+    // Add or update quantity
+    if (isset($_SESSION['cart'][$itemId])) {
+        $_SESSION['cart'][$itemId]['quantity'] += $quantity;
+    } else {
+        $_SESSION['cart'][$itemId] = [
+            'item_id' => $itemId,
+            'quantity' => $quantity,
+            'added_at' => time()
+        ];
+    }
+    
+    // Limit quantity to 10 per item
+    if ($_SESSION['cart'][$itemId]['quantity'] > 10) {
+        $_SESSION['cart'][$itemId]['quantity'] = 10;
+    }
+    
+    return true;
+}
+
+/**
+ * Update cart item quantity
+ * @param int $itemId Item ID
+ * @param int $quantity New quantity
+ * @return bool True if successful
+ */
+function updateCartQuantity($itemId, $quantity) {
+    if (!isset($_SESSION['cart'][$itemId])) {
+        return false;
+    }
+    
+    if ($quantity <= 0) {
+        unset($_SESSION['cart'][$itemId]);
+    } else {
+        $_SESSION['cart'][$itemId]['quantity'] = min($quantity, 10);
+    }
+    
+    return true;
+}
+
+/**
+ * Remove item from cart
+ * @param int $itemId Item ID
+ * @return bool True if successful
+ */
+function removeFromCart($itemId) {
+    if (isset($_SESSION['cart'][$itemId])) {
+        unset($_SESSION['cart'][$itemId]);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Clear entire cart
+ */
+function clearCart() {
+    $_SESSION['cart'] = [];
+}
+
+/**
+ * Get cart items with full details
+ * @return array Cart items with menu details
+ */
+function getCartItems() {
+    if (!isset($_SESSION['cart']) || empty($_SESSION['cart'])) {
+        return [];
+    }
+    
+    $cartItems = [];
+    
+    foreach ($_SESSION['cart'] as $itemId => $cartItem) {
+        $menuItem = getMenuItemById($itemId);
+        if ($menuItem) {
+            $cartItems[] = array_merge($menuItem, [
+                'quantity' => $cartItem['quantity'],
+                'added_at' => $cartItem['added_at']
+            ]);
+        }
+    }
+    
+    return $cartItems;
+}
+
+/**
+ * Get cart total amount
+ * @return float Total amount
+ */
+function getCartTotal() {
+    $total = 0;
+    $cartItems = getCartItems();
+    
+    foreach ($cartItems as $item) {
+        $total += $item['price'] * $item['quantity'];
+    }
+    
+    return $total;
+}
+
+/**
+ * Get cart item count
+ * @return int Total number of items
+ */
+function getCartCount() {
+    if (!isset($_SESSION['cart'])) {
+        return 0;
+    }
+    
+    $count = 0;
+    foreach ($_SESSION['cart'] as $item) {
+        $count += $item['quantity'];
+    }
+    
+    return $count;
+}
+
+/**
+ * Check if item is in cart
+ * @param int $itemId Item ID
+ * @return bool True if in cart
+ */
+function isInCart($itemId) {
+    return isset($_SESSION['cart'][$itemId]);
+}
+
+/**
+ * Get item quantity in cart
+ * @param int $itemId Item ID
+ * @return int Quantity in cart
+ */
+function getCartItemQuantity($itemId) {
+    return isset($_SESSION['cart'][$itemId]) ? $_SESSION['cart'][$itemId]['quantity'] : 0;
+}
+
+/**
+ * Create order from cart
+ * @param array $orderData Order information
+ * @return bool|int Order ID if successful, false otherwise
+ */
+function createOrderFromCart($orderData) {
+    global $conn;
+    
+    $cartItems = getCartItems();
+    if (empty($cartItems)) {
+        return false;
+    }
+    
+    $subtotal = getCartTotal();
+    $deliveryFee = 5.00;
+    $tax = $subtotal * 0.06;
+    $totalAmount = $subtotal + $deliveryFee + $tax;
+    
+    // Start transaction
+    $conn->autocommit(false);
+    
+    try {
+        // Insert order
+        $stmt = $conn->prepare("INSERT INTO orders (user_id, total_amount, delivery_address, phone, notes, order_status, payment_status) VALUES (?, ?, ?, ?, ?, 'pending', 'pending')");
+        $stmt->bind_param("idsss", 
+            $orderData['user_id'],
+            $totalAmount,
+            $orderData['delivery_address'],
+            $orderData['phone'],
+            $orderData['notes']
+        );
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to create order");
+        }
+        
+        $orderId = $stmt->insert_id;
+        
+        // Insert order items
+        $stmt = $conn->prepare("INSERT INTO order_items (order_id, item_id, quantity, item_price) VALUES (?, ?, ?, ?)");
+        
+        foreach ($cartItems as $item) {
+            $stmt->bind_param("iiid", 
+                $orderId,
+                $item['item_id'],
+                $item['quantity'],
+                $item['price']
+            );
+            
+            if (!$stmt->execute()) {
+                throw new Exception("Failed to add order item");
+            }
+        }
+        
+        // Commit transaction
+        $conn->commit();
+        
+        // Clear cart
+        clearCart();
+        
+        return $orderId;
+        
+    } catch (Exception $e) {
+        $conn->rollback();
+        return false;
+    } finally {
+        $conn->autocommit(true);
+    }
+}
+
+/**
+ * Get order by ID
+ * @param int $orderId Order ID
+ * @return array|null Order data or null if not found
+ */
+function getOrderById($orderId) {
+    global $conn;
+    $stmt = $conn->prepare("SELECT * FROM orders WHERE order_id = ?");
+    $stmt->bind_param("i", $orderId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_assoc();
+}
+
+/**
+ * Get order items
+ * @param int $orderId Order ID
+ * @return array Order items with menu details
+ */
+function getOrderItems($orderId) {
+    global $conn;
+    $stmt = $conn->prepare("SELECT oi.*, mi.item_name, mi.image_url, c.category_name 
+                           FROM order_items oi 
+                           JOIN menu_items mi ON oi.item_id = mi.item_id 
+                           JOIN categories c ON mi.category_id = c.category_id 
+                           WHERE oi.order_id = ?");
+    $stmt->bind_param("i", $orderId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Get user orders
+ * @param int $userId User ID
+ * @param int $limit Number of orders to return
+ * @return array User orders
+ */
+function getUserOrders($userId, $limit = 50) {
+    global $conn;
+    $stmt = $conn->prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT ?");
+    $stmt->bind_param("ii", $userId, $limit);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Update order status
+ * @param int $orderId Order ID
+ * @param string $status New status
+ * @return bool True if successful
+ */
+function updateOrderStatus($orderId, $status) {
+    global $conn;
+    $validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'];
+    
+    if (!in_array($status, $validStatuses)) {
+        return false;
+    }
+    
+    $stmt = $conn->prepare("UPDATE orders SET order_status = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?");
+    $stmt->bind_param("si", $status, $orderId);
+    
+    return $stmt->execute();
+}
+
+/**
+ * Get all orders (Admin only)
+ * @param string $status Optional status filter
+ * @param int $limit Number of orders to return
+ * @return array All orders
+ */
+function getAllOrders($status = null, $limit = 100) {
+    global $conn;
+    
+    $sql = "SELECT o.*, u.full_name, u.email 
+            FROM orders o 
+            JOIN users u ON o.user_id = u.user_id";
+    
+    if ($status) {
+        $sql .= " WHERE o.order_status = ?";
+    }
+    
+    $sql .= " ORDER BY o.created_at DESC LIMIT ?";
+    
+    $stmt = $conn->prepare($sql);
+    
+    if ($status) {
+        $stmt->bind_param("si", $status, $limit);
+    } else {
+        $stmt->bind_param("i", $limit);
+    }
+    
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
 ?>

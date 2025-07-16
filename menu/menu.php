@@ -1,7 +1,7 @@
 <?php
 /**
  * Menu Display Page
- * Online Food Ordering System - Phase 2
+ * Online Food Ordering System - Phase 3
  * 
  * Public menu display with categories, search, and filtering
  */
@@ -39,7 +39,7 @@ if (!empty($searchTerm)) {
 
 // Get featured items for homepage section
 $featuredItems = getFeaturedMenuItems(6);
-$priceRange = getMenuPriceRange();
+$menuPriceRange = getMenuPriceRange();
 
 // Page configuration
 $pageTitle = 'Menu';
@@ -49,7 +49,15 @@ $bodyClass = 'menu-page';
 include '../includes/header.php';
 ?>
 
+<!-- Add CSRF Token Meta Tag -->
+<meta name="csrf-token" content="<?php echo generateCSRFToken(); ?>">
+
 <div class="container">
+    <!-- Hidden CSRF Form -->
+    <form id="csrf-form" style="display: none;">
+        <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+    </form>
+
     <!-- Page Header -->
     <div class="page-header">
         <h1 class="page-title">Our Menu</h1>
@@ -543,6 +551,16 @@ include '../includes/header.php';
     margin-bottom: 0.5rem;
 }
 
+/* Success animation for add to cart */
+.success-animation {
+    animation: successPulse 0.6s ease-in-out;
+}
+
+@keyframes successPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .filter-row {
@@ -593,75 +611,7 @@ include '../includes/header.php';
 }
 </style>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Add to cart functionality (will be implemented in Phase 3)
-    const addToCartButtons = document.querySelectorAll('.add-to-cart');
-    addToCartButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const itemId = button.getAttribute('data-item-id');
-            const itemName = button.getAttribute('data-item-name');
-            const itemPrice = button.getAttribute('data-item-price');
-            
-            // Placeholder - will be implemented in Phase 3
-            FoodOrderingApp.showAlert('Add to cart functionality will be available in Phase 3!', 'info');
-        });
-    });
-    
-    // View details functionality
-    const viewDetailsButtons = document.querySelectorAll('.view-details');
-    viewDetailsButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const itemId = button.getAttribute('data-item-id');
-            loadItemDetails(itemId);
-        });
-    });
-    
-    // Auto-submit form on filter change
-    const filterSelects = document.querySelectorAll('#category, #price_range');
-    filterSelects.forEach(select => {
-        select.addEventListener('change', function() {
-            document.querySelector('.filter-form').submit();
-        });
-    });
-    
-    // Search input with debounce
-    const searchInput = document.getElementById('search');
-    if (searchInput) {
-        let searchTimeout;
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                if (searchInput.value.length >= 3 || searchInput.value.length === 0) {
-                    document.querySelector('.filter-form').submit();
-                }
-            }, 500);
-        });
-    }
-});
-
-function loadItemDetails(itemId) {
-    // Show loading state
-    const modal = document.getElementById('item-details-modal');
-    const content = document.getElementById('item-details-content');
-    
-    content.innerHTML = '<div class="spinner"></div>';
-    FoodOrderingApp.openModal('item-details-modal');
-    
-    // Fetch item details
-    FoodOrderingApp.ajaxRequest('ajax/get_item_details.php', 'POST', { item_id: itemId })
-        .then(response => {
-            if (response.success) {
-                content.innerHTML = response.html;
-            } else {
-                content.innerHTML = '<div class="alert alert-error">Failed to load item details.</div>';
-            }
-        })
-        .catch(error => {
-            content.innerHTML = '<div class="alert alert-error">Error loading item details.</div>';
-        });
-}
-</script>
+<!-- NO SCRIPT SECTION - All functionality handled by main script.js -->
 
 <?php
 // Include footer

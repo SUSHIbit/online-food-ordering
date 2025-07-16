@@ -1,46 +1,32 @@
 <?php
+// 2. Create: ajax/get_item_details.php  
 /**
  * AJAX Handler for Item Details
- * Online Food Ordering System - Phase 2
- * 
- * Returns detailed information about a menu item
  */
 
 require_once '../config.php';
 require_once '../functions.php';
 
-// Check if request is AJAX
 if (!isset($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) !== 'xmlhttprequest') {
     http_response_code(403);
     exit();
 }
 
-// Set JSON response header
 header('Content-Type: application/json');
 
-// Check if item ID is provided
 if (!isset($_POST['item_id']) || empty($_POST['item_id'])) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Item ID is required'
-    ]);
+    echo json_encode(['success' => false, 'message' => 'Item ID is required']);
     exit();
 }
 
 $itemId = (int)$_POST['item_id'];
-
-// Get item details
 $item = getMenuItemById($itemId);
 
 if (!$item) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Item not found'
-    ]);
+    echo json_encode(['success' => false, 'message' => 'Item not found']);
     exit();
 }
 
-// Generate HTML for item details
 ob_start();
 ?>
 <div class="item-details">
@@ -281,31 +267,7 @@ ob_start();
 }
 </style>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Add to cart functionality from modal
-    const addToCartBtn = document.querySelector('.add-to-cart-modal');
-    if (addToCartBtn) {
-        addToCartBtn.addEventListener('click', function() {
-            const itemId = addToCartBtn.getAttribute('data-item-id');
-            const itemName = addToCartBtn.getAttribute('data-item-name');
-            const itemPrice = addToCartBtn.getAttribute('data-item-price');
-            
-            // Close modal first
-            FoodOrderingApp.closeModal('item-details-modal');
-            
-            // Show placeholder message (will be implemented in Phase 3)
-            FoodOrderingApp.showAlert('Add to cart functionality will be available in Phase 3!', 'info');
-        });
-    }
-});
-</script>
-
 <?php
 $html = ob_get_clean();
-
-echo json_encode([
-    'success' => true,
-    'html' => $html
-]);
+echo json_encode(['success' => true, 'html' => $html]);
 ?>
