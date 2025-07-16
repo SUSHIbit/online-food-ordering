@@ -396,4 +396,413 @@ function changeUserPassword($userId, $newPassword) {
     
     return $stmt->execute();
 }
+
+/**
+ * Enhanced Functions File - Phase 2
+ * Online Food Ordering System - Menu Functions
+ * 
+ * Additional functions for menu and category management
+ */
+
+/**
+ * Get all active categories ordered by sort_order
+ * @return array Categories array
+ */
+function getCategories() {
+    global $conn;
+    $result = $conn->query("SELECT * FROM categories WHERE status = 'active' ORDER BY sort_order ASC, category_name ASC");
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Get category by ID
+ * @param int $categoryId Category ID
+ * @return array|null Category data or null if not found
+ */
+function getCategoryById($categoryId) {
+    global $conn;
+    $stmt = $conn->prepare("SELECT * FROM categories WHERE category_id = ? AND status = 'active'");
+    $stmt->bind_param("i", $categoryId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_assoc();
+}
+
+/**
+ * Get menu items by category
+ * @param int $categoryId Category ID
+ * @param bool $availableOnly Show only available items
+ * @return array Menu items array
+ */
+function getMenuItemsByCategory($categoryId, $availableOnly = true) {
+    global $conn;
+    $sql = "SELECT * FROM menu_items WHERE category_id = ?";
+    
+    if ($availableOnly) {
+        $sql .= " AND availability = 'available'";
+    }
+    
+    $sql .= " ORDER BY sort_order ASC, item_name ASC";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $categoryId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Get all menu items with category information
+ * @param bool $availableOnly Show only available items
+ * @return array Menu items with category data
+ */
+function getAllMenuItems($availableOnly = true) {
+    global $conn;
+    $sql = "SELECT mi.*, c.category_name 
+            FROM menu_items mi 
+            JOIN categories c ON mi.category_id = c.category_id 
+            WHERE c.status = 'active'";
+    
+    if ($availableOnly) {
+        $sql .= " AND mi.availability = 'available'";
+    }
+    
+    $sql .= " ORDER BY c.sort_order ASC, mi.sort_order ASC, mi.item_name ASC";
+    
+    $result = $conn->query($sql);
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Get menu item by ID
+ * @param int $itemId Item ID
+ * @return array|null Menu item data or null if not found
+ */
+function getMenuItemById($itemId) {
+    global $conn;
+    $stmt = $conn->prepare("SELECT mi.*, c.category_name 
+                           FROM menu_items mi 
+                           JOIN categories c ON mi.category_id = c.category_id 
+                           WHERE mi.item_id = ?");
+    $stmt->bind_param("i", $itemId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_assoc();
+}
+
+/**
+ * Get featured menu items
+ * @param int $limit Number of items to return
+ * @return array Featured menu items
+ */
+function getFeaturedMenuItems($limit = 6) {
+    global $conn;
+    $stmt = $conn->prepare("SELECT mi.*, c.category_name 
+                           FROM menu_items mi 
+                           JOIN categories c ON mi.category_id = c.category_id 
+                           WHERE mi.is_featured = 1 AND mi.availability = 'available' 
+                           AND c.status = 'active'
+                           ORDER BY mi.sort_order ASC, mi.item_name ASC 
+                           LIMIT ?");
+    $stmt->bind_param("i", $limit);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Search menu items
+ * @param string $searchTerm Search term
+ * @param int $categoryId Optional category filter
+ * @return array Search results
+ */
+function searchMenuItems($searchTerm, $categoryId = null) {
+    global $conn;
+    $searchTerm = '%' . $searchTerm . '%';
+    
+    $sql = "SELECT mi.*, c.category_name 
+            FROM menu_items mi 
+            JOIN categories c ON mi.category_id = c.category_id 
+            WHERE (mi.item_name LIKE ? OR mi.description LIKE ? OR mi.ingredients LIKE ?) 
+            AND mi.availability = 'available' AND c.status = 'active'";
+    
+    $params = [$searchTerm, $searchTerm, $searchTerm];
+    
+    if ($categoryId) {
+        $sql .= " AND mi.category_id = ?";
+        $params[] = $categoryId;
+    }
+    
+    $sql .= " ORDER BY mi.item_name ASC";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param(str_repeat('s', count($params) - ($categoryId ? 1 : 0)) . ($categoryId ? 'i' : ''), ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Create new category (Admin only)
+ * @param array $categoryData Category data
+ * @return bool|int Category ID if successful, false otherwise
+ */
+function createCategory($categoryData) {
+    global $conn;
+    
+    if (empty($categoryData['category_name'])) {
+        return false;
+    }
+    
+    $stmt = $conn->prepare("INSERT INTO categories (category_name, description, sort_order) VALUES (?, ?, ?)");
+    $stmt->bind_param("ssi", 
+        $categoryData['category_name'],
+        $categoryData['description'],
+        $categoryData['sort_order'] ?? 0
+    );
+    
+    if ($stmt->execute()) {
+        return $stmt->insert_id;
+    }
+    
+    return false;
+}
+
+/**
+ * Update category (Admin only)
+ * @param int $categoryId Category ID
+ * @param array $categoryData Updated category data
+ * @return bool True if successful, false otherwise
+ */
+function updateCategory($categoryId, $categoryData) {
+    global $conn;
+    
+    $stmt = $conn->prepare("UPDATE categories SET category_name = ?, description = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE category_id = ?");
+    $stmt->bind_param("ssii", 
+        $categoryData['category_name'],
+        $categoryData['description'],
+        $categoryData['sort_order'] ?? 0,
+        $categoryId
+    );
+    
+    return $stmt->execute();
+}
+
+/**
+ * Delete category (Admin only)
+ * @param int $categoryId Category ID
+ * @return bool True if successful, false otherwise
+ */
+function deleteCategory($categoryId) {
+    global $conn;
+    
+    // Check if category has menu items
+    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM menu_items WHERE category_id = ?");
+    $stmt->bind_param("i", $categoryId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    
+    if ($row['count'] > 0) {
+        return false; // Cannot delete category with items
+    }
+    
+    $stmt = $conn->prepare("DELETE FROM categories WHERE category_id = ?");
+    $stmt->bind_param("i", $categoryId);
+    return $stmt->execute();
+}
+
+/**
+ * Create new menu item (Admin only)
+ * @param array $itemData Menu item data
+ * @return bool|int Item ID if successful, false otherwise
+ */
+function createMenuItem($itemData) {
+    global $conn;
+    
+    if (empty($itemData['item_name']) || empty($itemData['price']) || empty($itemData['category_id'])) {
+        return false;
+    }
+    
+    $stmt = $conn->prepare("INSERT INTO menu_items (category_id, item_name, description, price, image_url, preparation_time, ingredients, allergens, calories, is_featured, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("isssdissiib", 
+        $itemData['category_id'],
+        $itemData['item_name'],
+        $itemData['description'],
+        $itemData['price'],
+        $itemData['image_url'] ?? null,
+        $itemData['preparation_time'] ?? 15,
+        $itemData['ingredients'] ?? '',
+        $itemData['allergens'] ?? '',
+        $itemData['calories'] ?? null,
+        $itemData['is_featured'] ?? false,
+        $itemData['sort_order'] ?? 0
+    );
+    
+    if ($stmt->execute()) {
+        return $stmt->insert_id;
+    }
+    
+    return false;
+}
+
+/**
+ * Update menu item (Admin only)
+ * @param int $itemId Item ID
+ * @param array $itemData Updated item data
+ * @return bool True if successful, false otherwise
+ */
+function updateMenuItem($itemId, $itemData) {
+    global $conn;
+    
+    $stmt = $conn->prepare("UPDATE menu_items SET category_id = ?, item_name = ?, description = ?, price = ?, image_url = ?, preparation_time = ?, ingredients = ?, allergens = ?, calories = ?, is_featured = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?");
+    $stmt->bind_param("isssdissiiii", 
+        $itemData['category_id'],
+        $itemData['item_name'],
+        $itemData['description'],
+        $itemData['price'],
+        $itemData['image_url'],
+        $itemData['preparation_time'],
+        $itemData['ingredients'],
+        $itemData['allergens'],
+        $itemData['calories'],
+        $itemData['is_featured'] ?? false,
+        $itemData['sort_order'] ?? 0,
+        $itemId
+    );
+    
+    return $stmt->execute();
+}
+
+/**
+ * Toggle menu item availability (Admin only)
+ * @param int $itemId Item ID
+ * @return bool True if successful, false otherwise
+ */
+function toggleMenuItemAvailability($itemId) {
+    global $conn;
+    
+    $stmt = $conn->prepare("UPDATE menu_items SET availability = CASE WHEN availability = 'available' THEN 'unavailable' ELSE 'available' END, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?");
+    $stmt->bind_param("i", $itemId);
+    
+    return $stmt->execute();
+}
+
+/**
+ * Delete menu item (Admin only)
+ * @param int $itemId Item ID
+ * @return bool True if successful, false otherwise
+ */
+function deleteMenuItem($itemId) {
+    global $conn;
+    
+    $stmt = $conn->prepare("DELETE FROM menu_items WHERE item_id = ?");
+    $stmt->bind_param("i", $itemId);
+    return $stmt->execute();
+}
+
+/**
+ * Get menu statistics
+ * @return array Statistics data
+ */
+function getMenuStatistics() {
+    global $conn;
+    
+    $stats = [];
+    
+    // Total categories
+    $result = $conn->query("SELECT COUNT(*) as count FROM categories WHERE status = 'active'");
+    $stats['total_categories'] = $result->fetch_assoc()['count'];
+    
+    // Total menu items
+    $result = $conn->query("SELECT COUNT(*) as count FROM menu_items WHERE availability = 'available'");
+    $stats['total_items'] = $result->fetch_assoc()['count'];
+    
+    // Featured items
+    $result = $conn->query("SELECT COUNT(*) as count FROM menu_items WHERE is_featured = 1 AND availability = 'available'");
+    $stats['featured_items'] = $result->fetch_assoc()['count'];
+    
+    // Average price
+    $result = $conn->query("SELECT AVG(price) as avg_price FROM menu_items WHERE availability = 'available'");
+    $stats['average_price'] = round($result->fetch_assoc()['avg_price'], 2);
+    
+    return $stats;
+}
+
+/**
+ * Get price range for menu items
+ * @return array Min and max prices
+ */
+function getMenuPriceRange() {
+    global $conn;
+    
+    $result = $conn->query("SELECT MIN(price) as min_price, MAX(price) as max_price FROM menu_items WHERE availability = 'available'");
+    return $result->fetch_assoc();
+}
+
+/**
+ * Get menu items by price range
+ * @param float $minPrice Minimum price
+ * @param float $maxPrice Maximum price
+ * @return array Menu items in price range
+ */
+function getMenuItemsByPriceRange($minPrice, $maxPrice) {
+    global $conn;
+    
+    $stmt = $conn->prepare("SELECT mi.*, c.category_name 
+                           FROM menu_items mi 
+                           JOIN categories c ON mi.category_id = c.category_id 
+                           WHERE mi.price BETWEEN ? AND ? 
+                           AND mi.availability = 'available' 
+                           AND c.status = 'active'
+                           ORDER BY mi.price ASC");
+    $stmt->bind_param("dd", $minPrice, $maxPrice);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Check if category name exists
+ * @param string $categoryName Category name
+ * @param int $excludeCategoryId Category ID to exclude (for updates)
+ * @return bool True if exists, false otherwise
+ */
+function categoryNameExists($categoryName, $excludeCategoryId = null) {
+    global $conn;
+    
+    $sql = "SELECT category_id FROM categories WHERE category_name = ?";
+    $params = [$categoryName];
+    
+    if ($excludeCategoryId) {
+        $sql .= " AND category_id != ?";
+        $params[] = $excludeCategoryId;
+    }
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param(str_repeat('s', count($params) - ($excludeCategoryId ? 1 : 0)) . ($excludeCategoryId ? 'i' : ''), ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->num_rows > 0;
+}
+
+/**
+ * Upload menu item image
+ * @param array $file File data from $_FILES
+ * @return string|bool Filename if successful, false otherwise
+ */
+function uploadMenuImage($file) {
+    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    $maxSize = 5 * 1024 * 1024; // 5MB
+    
+    if (!in_array($file['type'], $allowedTypes)) {
+        return false;
+    }
+    
+    if ($file['size'] > $maxSize) {
+        return false;
+    }
+    
+    return uploadFile($file, 'assets/images/menu/');
+}
 ?>

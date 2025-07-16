@@ -62,4 +62,12 @@ if (!defined('DB_HOST')) {
     </header>
     
     <!-- Main Content -->
-    <main class="main"></main>
+    <main class="main">
+        <?php if (isset($_SESSION['flash_message'])): ?>
+            <?php foreach ($_SESSION['flash_message'] as $type => $message): ?>
+                <div class="alert alert-<?php echo $type; ?>">
+                    <?php echo htmlspecialchars($message); ?>
+                </div>
+            <?php endforeach; ?>
+            <?php unset($_SESSION['flash_message']); ?>
+        <?php endif; ?>

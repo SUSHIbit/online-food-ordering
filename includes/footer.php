@@ -44,17 +44,5 @@
             <?php echo $inlineJS; ?>
         </script>
     <?php endif; ?>
-    
-    <!-- Flash Messages Handler -->
-    <?php if (isset($_SESSION['flash_message'])): ?>
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                <?php foreach ($_SESSION['flash_message'] as $type => $message): ?>
-                    FoodOrderingApp.showAlert('<?php echo addslashes($message); ?>', '<?php echo $type; ?>');
-                <?php endforeach; ?>
-            });
-        </script>
-        <?php unset($_SESSION['flash_message']); ?>
-    <?php endif; ?>
 </body>
 </html>
