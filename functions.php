@@ -1132,4 +1132,212 @@ function getAllOrders($status = null, $limit = 100) {
     return $result->fetch_all(MYSQLI_ASSOC);
 }
 
+/**
+ * Additional Functions for Phase 4
+ * Add these functions to your existing functions.php file
+ */
+
+/**
+ * Get admin orders with filters
+ */
+function getAdminOrders($statusFilter = null, $dateFilter = null, $limit = 50) {
+    global $conn;
+    
+    $sql = "SELECT o.*, u.full_name, u.email 
+            FROM orders o 
+            JOIN users u ON o.user_id = u.user_id 
+            WHERE 1=1";
+    $params = [];
+    $types = "";
+    
+    if ($statusFilter) {
+        $sql .= " AND o.order_status = ?";
+        $params[] = $statusFilter;
+        $types .= "s";
+    }
+    
+    if ($dateFilter) {
+        $sql .= " AND DATE(o.created_at) = ?";
+        $params[] = $dateFilter;
+        $types .= "s";
+    }
+    
+    $sql .= " ORDER BY o.created_at DESC LIMIT ?";
+    $params[] = $limit;
+    $types .= "i";
+    
+    $stmt = $conn->prepare($sql);
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Get order statistics
+ */
+function getOrderStatistics() {
+    global $conn;
+    
+    $stats = [];
+    
+    // Total orders
+    $result = $conn->query("SELECT COUNT(*) as count FROM orders");
+    $stats['total_orders'] = $result->fetch_assoc()['count'];
+    
+    // Pending orders
+    $result = $conn->query("SELECT COUNT(*) as count FROM orders WHERE order_status = 'pending'");
+    $stats['pending_orders'] = $result->fetch_assoc()['count'];
+    
+    // Preparing orders
+    $result = $conn->query("SELECT COUNT(*) as count FROM orders WHERE order_status = 'preparing'");
+    $stats['preparing_orders'] = $result->fetch_assoc()['count'];
+    
+    // Total revenue
+    $result = $conn->query("SELECT SUM(total_amount) as total FROM orders WHERE order_status = 'delivered'");
+    $stats['total_revenue'] = $result->fetch_assoc()['total'] ?? 0;
+    
+    return $stats;
+}
+
+/**
+ * Get dashboard statistics
+ */
+function getDashboardStats() {
+    global $conn;
+    
+    $stats = [];
+    
+    // Orders today
+    $result = $conn->query("SELECT COUNT(*) as count FROM orders WHERE DATE(created_at) = CURDATE()");
+    $stats['total_orders_today'] = $result->fetch_assoc()['count'];
+    
+    // Revenue today
+    $result = $conn->query("SELECT SUM(total_amount) as total FROM orders WHERE DATE(created_at) = CURDATE() AND order_status = 'delivered'");
+    $stats['revenue_today'] = $result->fetch_assoc()['total'] ?? 0;
+    
+    // Active customers (this month)
+    $result = $conn->query("SELECT COUNT(DISTINCT user_id) as count FROM orders WHERE MONTH(created_at) = MONTH(CURDATE())");
+    $stats['active_customers'] = $result->fetch_assoc()['count'];
+    
+    // Average order value
+    $result = $conn->query("SELECT AVG(total_amount) as avg_val FROM orders WHERE order_status = 'delivered'");
+    $stats['avg_order_value'] = formatCurrency($result->fetch_assoc()['avg_val'] ?? 0);
+    
+    // Pending orders
+    $result = $conn->query("SELECT COUNT(*) as count FROM orders WHERE order_status = 'pending'");
+    $stats['pending_orders'] = $result->fetch_assoc()['count'];
+    
+    // Total menu items
+    $result = $conn->query("SELECT COUNT(*) as count FROM menu_items WHERE availability = 'available'");
+    $stats['total_menu_items'] = $result->fetch_assoc()['count'];
+    
+    // Total customers
+    $result = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'customer' AND status = 'active'");
+    $stats['total_customers'] = $result->fetch_assoc()['count'];
+    
+    // Dummy percentage changes (in real app, calculate from historical data)
+    $stats['orders_change'] = rand(5, 25);
+    $stats['revenue_change'] = rand(8, 30);
+    
+    return $stats;
+}
+
+/**
+ * Get recent orders
+ */
+function getRecentOrders($limit = 10) {
+    global $conn;
+    
+    $stmt = $conn->prepare("SELECT o.*, u.full_name 
+                           FROM orders o 
+                           JOIN users u ON o.user_id = u.user_id 
+                           ORDER BY o.created_at DESC 
+                           LIMIT ?");
+    $stmt->bind_param("i", $limit);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Add order status history
+ */
+function addOrderStatusHistory($orderId, $status, $notes = '', $changedBy = null) {
+    global $conn;
+    
+    $stmt = $conn->prepare("INSERT INTO order_status_history (order_id, status, notes, changed_by) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("issi", $orderId, $status, $notes, $changedBy);
+    return $stmt->execute();
+}
+
+/**
+ * Get order status history
+ */
+function getOrderStatusHistory($orderId) {
+    global $conn;
+    
+    $stmt = $conn->prepare("SELECT h.*, u.full_name as changed_by_name 
+                           FROM order_status_history h 
+                           LEFT JOIN users u ON h.changed_by = u.user_id 
+                           WHERE h.order_id = ? 
+                           ORDER BY h.created_at DESC");
+    $stmt->bind_param("i", $orderId);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Get low stock items (placeholder for future inventory feature)
+ */
+function getLowStockItems() {
+    // Placeholder - in real app would check inventory levels
+    return [];
+}
+
+/**
+ * Get system status
+ */
+function getSystemStatus() {
+    global $conn;
+    
+    $status = [
+        'database' => $conn ? 'healthy' : 'error',
+        'orders' => 'running',
+        'menu' => 'synced'
+    ];
+    
+    return $status;
+}
+
+/**
+ * Cancel order (customer or admin)
+ */
+function cancelOrder($orderId, $userId = null) {
+    global $conn;
+    
+    // Verify order exists and can be cancelled
+    $order = getOrderById($orderId);
+    if (!$order || !in_array($order['order_status'], ['pending', 'confirmed'])) {
+        return false;
+    }
+    
+    // Check permissions
+    if ($userId && $order['user_id'] != $userId) {
+        return false;
+    }
+    
+    // Update order status
+    $stmt = $conn->prepare("UPDATE orders SET order_status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE order_id = ?");
+    $stmt->bind_param("i", $orderId);
+    
+    if ($stmt->execute()) {
+        // Add to history
+        addOrderStatusHistory($orderId, 'cancelled', 'Order cancelled', $userId);
+        return true;
+    }
+    
+    return false;
+}
+
 ?>

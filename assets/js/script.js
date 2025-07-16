@@ -759,3 +759,146 @@ window.FoodOrderingApp = {
     debounce,
     throttle
 };
+
+/**
+ * Order Tracking Enhancement
+ * Add to existing assets/js/script.js
+ */
+
+// Auto-refresh order status every 30 seconds
+if (document.querySelector('.order-details-page')) {
+    setInterval(function() {
+        checkOrderStatus();
+    }, 30000);
+}
+
+/**
+ * Check order status update
+ */
+function checkOrderStatus() {
+    const orderPage = document.querySelector('.order-details-page');
+    if (!orderPage) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('id');
+    
+    if (!orderId) return;
+    
+    fetch(`../ajax/check_order_status.php?order_id=${orderId}`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.status_changed) {
+            // Show notification
+            showOrderStatusUpdate(data.new_status);
+            
+            // Optionally reload page to show updated status
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        }
+    })
+    .catch(error => {
+        console.error('Error checking order status:', error);
+    });
+}
+
+/**
+ * Show order status update notification
+ */
+function showOrderStatusUpdate(newStatus) {
+    const notification = document.createElement('div');
+    notification.className = 'order-notification';
+    notification.innerHTML = `
+        <div class="notification-content">
+            <strong>Order Status Updated!</strong>
+            <p>Your order is now: ${newStatus}</p>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
+
+// Enhanced cart count update for navigation
+function updateCartCountDisplay(count) {
+    const cartCountElement = document.getElementById('cart-count');
+    if (cartCountElement) {
+        if (count > 0) {
+            cartCountElement.textContent = count;
+            cartCountElement.classList.add('has-items');
+            cartCountElement.style.display = 'inline-block';
+        } else {
+            cartCountElement.classList.remove('has-items');
+            cartCountElement.style.display = 'none';
+        }
+    }
+}
+
+// Order management for admin
+if (document.querySelector('.admin-page')) {
+    // Auto-refresh admin dashboard every 60 seconds
+    setInterval(function() {
+        updateDashboardStats();
+    }, 60000);
+}
+
+/**
+ * Update dashboard statistics
+ */
+function updateDashboardStats() {
+    if (!document.querySelector('.dashboard-page')) return;
+    
+    fetch('../ajax/get_dashboard_stats.php', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update metric cards
+            updateMetricCard('total_orders_today', data.stats.total_orders_today);
+            updateMetricCard('pending_orders', data.stats.pending_orders);
+        }
+    })
+    .catch(error => {
+        console.error('Error updating dashboard:', error);
+    });
+}
+
+/**
+ * Update metric card value
+ */
+function updateMetricCard(metric, value) {
+    const element = document.querySelector(`[data-metric="${metric}"] .metric-number`);
+    if (element && element.textContent !== value.toString()) {
+        element.textContent = value;
+        element.parentElement.classList.add('updated');
+        setTimeout(() => {
+            element.parentElement.classList.remove('updated');
+        }, 1000);
+    }
+}
+
+// Print order functionality
+function printOrder() {
+    window.print();
+}
+
+// Add to global app object
+window.FoodOrderingApp = window.FoodOrderingApp || {};
+Object.assign(window.FoodOrderingApp, {
+    checkOrderStatus,
+    updateCartCountDisplay,
+    printOrder
+});

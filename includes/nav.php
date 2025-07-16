@@ -1,9 +1,7 @@
 <?php
 /**
- * Navigation Component
- * Online Food Ordering System - Phase 1
- * 
- * This file contains the navigation menu with role-based access control.
+ * Fixed Navigation Component
+ * Online Food Ordering System - Bug Fixes
  */
 
 // Get current page for active navigation highlighting
@@ -12,7 +10,6 @@ $currentUser = getCurrentUser();
 ?>
 
 <nav class="nav" id="main-nav">
-    <!-- Public Navigation Items -->
     <ul class="nav-list">
         <li class="nav-item">
             <a href="<?php echo SITE_URL; ?>index.php" 
@@ -29,18 +26,17 @@ $currentUser = getCurrentUser();
         </li>
         
         <?php if (isLoggedIn()): ?>
-            <!-- Logged-in User Navigation -->
-            
             <?php if (isCustomer()): ?>
-                <!-- Customer-specific navigation -->
+                <!-- Customer Cart Link -->
                 <li class="nav-item">
                     <a href="<?php echo SITE_URL; ?>menu/cart.php" 
-                       class="nav-link <?php echo ($currentPage == 'cart.php') ? 'active' : ''; ?>">
+                       class="nav-link cart-link <?php echo ($currentPage == 'cart.php') ? 'active' : ''; ?>">
                         Cart
-                        <span id="cart-count" class="cart-count"></span>
+                        <span id="cart-count" class="cart-count">0</span>
                     </a>
                 </li>
                 
+                <!-- Customer Orders -->
                 <li class="nav-item">
                     <a href="<?php echo SITE_URL; ?>orders/orders.php" 
                        class="nav-link <?php echo ($currentPage == 'orders.php') ? 'active' : ''; ?>">
@@ -50,7 +46,7 @@ $currentUser = getCurrentUser();
             <?php endif; ?>
             
             <?php if (isAdmin()): ?>
-                <!-- Admin-specific navigation -->
+                <!-- Admin Links -->
                 <li class="nav-item">
                     <a href="<?php echo SITE_URL; ?>admin/admin.php" 
                        class="nav-link <?php echo ($currentPage == 'admin.php') ? 'active' : ''; ?>">
@@ -68,28 +64,27 @@ $currentUser = getCurrentUser();
                 <li class="nav-item">
                     <a href="<?php echo SITE_URL; ?>admin/admin-menu.php" 
                        class="nav-link <?php echo ($currentPage == 'admin-menu.php') ? 'active' : ''; ?>">
-                        Menu Management
+                        Menu
                     </a>
                 </li>
             <?php endif; ?>
             
-            <!-- User Profile Dropdown -->
+            <!-- User Profile Dropdown - FIXED -->
             <li class="nav-item nav-dropdown">
-                <a href="#" class="nav-link nav-dropdown-toggle">
+                <a href="#" class="nav-link nav-dropdown-toggle" onclick="return false;">
                     <?php echo htmlspecialchars($currentUser['full_name']); ?>
                     <span class="dropdown-arrow">▼</span>
                 </a>
                 <ul class="nav-dropdown-menu">
                     <li>
-                        <a href="<?php echo SITE_URL; ?>auth/profile.php" 
-                           class="nav-link <?php echo ($currentPage == 'profile.php') ? 'active' : ''; ?>">
+                        <a href="<?php echo SITE_URL; ?>auth/profile.php" class="nav-dropdown-link">
                             Profile
                         </a>
                     </li>
                     <li>
-                        <a href="<?php echo SITE_URL; ?>logout.php" 
-                           class="nav-link" 
-                           data-confirm="Are you sure you want to logout?">
+                        <a href="<?php echo SITE_URL; ?>logout.php?confirm=1" 
+                           class="nav-dropdown-link"
+                           onclick="return confirm('Are you sure you want to logout?');">
                             Logout
                         </a>
                     </li>
@@ -116,7 +111,7 @@ $currentUser = getCurrentUser();
 </nav>
 
 <style>
-/* Additional Navigation Styles */
+/* Fixed Navigation Styles */
 .nav-list {
     display: flex;
     list-style: none;
@@ -124,6 +119,10 @@ $currentUser = getCurrentUser();
     margin: 0;
     padding: 0;
     align-items: center;
+}
+
+.nav-item {
+    position: relative;
 }
 
 .nav-dropdown {
@@ -134,6 +133,7 @@ $currentUser = getCurrentUser();
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    cursor: pointer;
 }
 
 .dropdown-arrow {
@@ -141,10 +141,7 @@ $currentUser = getCurrentUser();
     transition: transform 0.2s ease;
 }
 
-.nav-dropdown:hover .dropdown-arrow {
-    transform: rotate(180deg);
-}
-
+/* FIXED DROPDOWN MENU */
 .nav-dropdown-menu {
     display: none;
     position: absolute;
@@ -158,29 +155,46 @@ $currentUser = getCurrentUser();
     z-index: 1000;
     padding: 0.5rem 0;
     margin-top: 0.5rem;
-}
-
-.nav-dropdown:hover .nav-dropdown-menu {
-    display: block;
+    list-style: none;
 }
 
 .nav-dropdown-menu li {
     width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
-.nav-dropdown-menu .nav-link {
+.nav-dropdown-link {
     display: block;
-    padding: 0.5rem 1rem;
-    color: #1e293b;
+    padding: 0.75rem 1rem;
+    color: #1e293b !important;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background-color 0.2s ease;
     border-radius: 0;
-    white-space: nowrap;
+    background: none !important;
 }
 
-.nav-dropdown-menu .nav-link:hover {
-    background-color: #f1f5f9;
-    color: #334155;
+.nav-dropdown-link:hover {
+    background-color: #f1f5f9 !important;
+    color: #334155 !important;
 }
 
+/* Show dropdown on hover with better timing */
+.nav-dropdown:hover .nav-dropdown-menu {
+    display: block;
+}
+
+.nav-dropdown:hover .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+/* Keep dropdown visible when hovering over menu */
+.nav-dropdown-menu:hover {
+    display: block;
+}
+
+/* Cart count styling - FIXED */
 .cart-count {
     background-color: #ef4444;
     color: white;
@@ -192,13 +206,14 @@ $currentUser = getCurrentUser();
     min-width: 1.25rem;
     text-align: center;
     display: none;
+    line-height: 1;
 }
 
 .cart-count.has-items {
     display: inline-block;
 }
 
-/* Mobile Navigation Adjustments */
+/* Mobile Navigation */
 @media (max-width: 768px) {
     .nav-list {
         flex-direction: column;
@@ -219,7 +234,7 @@ $currentUser = getCurrentUser();
     
     .nav-dropdown-menu {
         position: static;
-        display: block;
+        display: none;
         background-color: #475569;
         border: none;
         box-shadow: none;
@@ -228,15 +243,19 @@ $currentUser = getCurrentUser();
         padding: 0;
     }
     
-    .nav-dropdown-menu .nav-link {
-        padding-left: 2rem;
-        background-color: #475569;
-        color: #e2e8f0;
+    .nav-dropdown-menu.show {
+        display: block;
     }
     
-    .nav-dropdown-menu .nav-link:hover {
-        background-color: #64748b;
-        color: white;
+    .nav-dropdown-link {
+        padding-left: 2rem !important;
+        background-color: #475569 !important;
+        color: #e2e8f0 !important;
+    }
+    
+    .nav-dropdown-link:hover {
+        background-color: #64748b !important;
+        color: white !important;
     }
     
     .dropdown-arrow {
@@ -246,58 +265,194 @@ $currentUser = getCurrentUser();
 </style>
 
 <script>
-// Update cart count on page load
 document.addEventListener('DOMContentLoaded', function() {
+    // Update cart count on page load
     updateCartCount();
-});
-
-// Function to update cart count
-function updateCartCount() {
-    const cartCountElement = document.getElementById('cart-count');
-    if (!cartCountElement) return;
     
-    // Check if user is logged in and is a customer
-    <?php if (isCustomer()): ?>
-        // Get cart count from session or make AJAX request
-        // This will be implemented in later phases
-        const cartCount = getCartItemCount(); // Function to be implemented
-        
-        if (cartCount > 0) {
-            cartCountElement.textContent = cartCount;
-            cartCountElement.classList.add('has-items');
-        } else {
-            cartCountElement.classList.remove('has-items');
-        }
-    <?php endif; ?>
-}
-
-// Placeholder function for cart count (to be implemented in Phase 3)
-function getCartItemCount() {
-    // This will be implemented when we add cart functionality
-    return 0;
-}
-
-// Dropdown menu functionality for mobile
-document.addEventListener('DOMContentLoaded', function() {
+    // Mobile dropdown functionality
     const dropdownToggles = document.querySelectorAll('.nav-dropdown-toggle');
     
     dropdownToggles.forEach(toggle => {
         toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            
             if (window.innerWidth <= 768) {
-                e.preventDefault();
                 const dropdown = toggle.parentNode;
                 const menu = dropdown.querySelector('.nav-dropdown-menu');
                 
                 // Toggle menu visibility
-                if (menu.style.display === 'block') {
-                    menu.style.display = 'none';
+                if (menu.classList.contains('show')) {
+                    menu.classList.remove('show');
                     toggle.querySelector('.dropdown-arrow').style.transform = 'rotate(0deg)';
                 } else {
-                    menu.style.display = 'block';
+                    menu.classList.add('show');
                     toggle.querySelector('.dropdown-arrow').style.transform = 'rotate(180deg)';
                 }
             }
         });
     });
 });
+
+// FIXED: Update cart count function
+function updateCartCount() {
+    const cartCountElement = document.getElementById('cart-count');
+    if (!cartCountElement) return;
+    
+    <?php if (isCustomer()): ?>
+        // Make AJAX request to get cart count
+        fetch('<?php echo SITE_URL; ?>ajax/get_cart_count.php', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateCartCountDisplay(data.count);
+            }
+        })
+        .catch(error => {
+            console.log('Cart count update failed:', error);
+            cartCountElement.style.display = 'none';
+        });
+    <?php else: ?>
+        // Not a customer, hide cart count
+        cartCountElement.style.display = 'none';
+    <?php endif; ?>
+}
+
+// FIXED: Update cart count display
+function updateCartCountDisplay(count) {
+    const cartCountElement = document.getElementById('cart-count');
+    if (cartCountElement) {
+        if (count > 0) {
+            cartCountElement.textContent = count;
+            cartCountElement.classList.add('has-items');
+            cartCountElement.style.display = 'flex';
+        } else {
+            cartCountElement.classList.remove('has-items');
+            cartCountElement.style.display = 'none';
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Update cart count on page load
+    updateCartCount();
+    
+    // Enhanced dropdown handling for stability
+    const dropdowns = document.querySelectorAll('.nav-dropdown');
+    
+    dropdowns.forEach(dropdown => {
+        const toggle = dropdown.querySelector('.nav-dropdown-toggle');
+        const menu = dropdown.querySelector('.nav-dropdown-menu');
+        const arrow = dropdown.querySelector('.dropdown-arrow');
+        
+        if (!toggle || !menu) return;
+        
+        let hoverTimeout;
+        let isMenuOpen = false;
+        
+        // Mouse enter on dropdown container
+        dropdown.addEventListener('mouseenter', function() {
+            clearTimeout(hoverTimeout);
+            if (!isMenuOpen) {
+                showDropdown();
+            }
+        });
+        
+        // Mouse leave on dropdown container
+        dropdown.addEventListener('mouseleave', function() {
+            hoverTimeout = setTimeout(() => {
+                hideDropdown();
+            }, 150); // Small delay to prevent accidental closes
+        });
+        
+        // Keep menu open when hovering over it
+        menu.addEventListener('mouseenter', function() {
+            clearTimeout(hoverTimeout);
+        });
+        
+        // Close when leaving menu
+        menu.addEventListener('mouseleave', function() {
+            hoverTimeout = setTimeout(() => {
+                hideDropdown();
+            }, 100);
+        });
+        
+        // Click handling for mobile
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            if (window.innerWidth <= 768) {
+                // Mobile behavior
+                if (menu.classList.contains('show')) {
+                    hideDropdown();
+                } else {
+                    showDropdown();
+                }
+            }
+        });
+        
+        // Prevent menu clicks from closing dropdown
+        menu.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        
+        function showDropdown() {
+            menu.style.display = 'block';
+            menu.classList.add('show');
+            if (arrow) arrow.style.transform = 'rotate(180deg)';
+            isMenuOpen = true;
+        }
+        
+        function hideDropdown() {
+            menu.style.display = 'none';
+            menu.classList.remove('show');
+            if (arrow) arrow.style.transform = 'rotate(0deg)';
+            isMenuOpen = false;
+        }
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!dropdown.contains(e.target)) {
+                hideDropdown();
+            }
+        });
+    });
+    
+    // Mobile navigation toggle
+    const mobileToggle = document.querySelector('.mobile-nav-toggle');
+    const nav = document.querySelector('.nav');
+    
+    if (mobileToggle && nav) {
+        mobileToggle.addEventListener('click', function() {
+            nav.classList.toggle('active');
+            
+            const icon = mobileToggle.querySelector('i') || mobileToggle;
+            if (nav.classList.contains('active')) {
+                icon.innerHTML = '✕';
+            } else {
+                icon.innerHTML = '☰';
+            }
+        });
+        
+        // Close mobile menu when clicking on nav links
+        const navLinks = document.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    nav.classList.remove('active');
+                    const icon = mobileToggle.querySelector('i') || mobileToggle;
+                    icon.innerHTML = '☰';
+                }
+            });
+        });
+    }
+});
+
+// Make functions globally available
+window.updateCartCount = updateCartCount;
+window.updateCartCountDisplay = updateCartCountDisplay;
 </script>
