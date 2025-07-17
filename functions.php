@@ -613,9 +613,8 @@ function deleteCategory($categoryId) {
 }
 
 /**
- * Create new menu item (Admin only)
- * @param array $itemData Menu item data
- * @return bool|int Item ID if successful, false otherwise
+ * FINAL FIX: Create new menu item (Admin only)
+ * Replace the createMenuItem function in your functions.php with this version
  */
 function createMenuItem($itemData) {
     global $conn;
@@ -624,19 +623,34 @@ function createMenuItem($itemData) {
         return false;
     }
     
+    // Prepare all variables individually to avoid reference issues
+    $category_id = (int)$itemData['category_id'];
+    $item_name = $itemData['item_name'];
+    $description = isset($itemData['description']) ? $itemData['description'] : '';
+    $price = (float)$itemData['price'];
+    $image_url = isset($itemData['image_url']) ? $itemData['image_url'] : null;
+    $preparation_time = isset($itemData['preparation_time']) ? (int)$itemData['preparation_time'] : 15;
+    $ingredients = isset($itemData['ingredients']) ? $itemData['ingredients'] : '';
+    $allergens = isset($itemData['allergens']) ? $itemData['allergens'] : '';
+    $calories = isset($itemData['calories']) ? (int)$itemData['calories'] : null;
+    $is_featured = isset($itemData['is_featured']) ? 1 : 0;
+    $sort_order = isset($itemData['sort_order']) ? (int)$itemData['sort_order'] : 0;
+    
     $stmt = $conn->prepare("INSERT INTO menu_items (category_id, item_name, description, price, image_url, preparation_time, ingredients, allergens, calories, is_featured, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("isssdissiib", 
-        $itemData['category_id'],
-        $itemData['item_name'],
-        $itemData['description'],
-        $itemData['price'],
-        $itemData['image_url'] ?? null,
-        $itemData['preparation_time'] ?? 15,
-        $itemData['ingredients'] ?? '',
-        $itemData['allergens'] ?? '',
-        $itemData['calories'] ?? null,
-        $itemData['is_featured'] ?? false,
-        $itemData['sort_order'] ?? 0
+    
+    // Use the individual variables instead of array access
+    $stmt->bind_param("issdsissiii", 
+        $category_id,
+        $item_name,
+        $description,
+        $price,
+        $image_url,
+        $preparation_time,
+        $ingredients,
+        $allergens,
+        $calories,
+        $is_featured,
+        $sort_order
     );
     
     if ($stmt->execute()) {
@@ -647,28 +661,42 @@ function createMenuItem($itemData) {
 }
 
 /**
- * Update menu item (Admin only)
- * @param int $itemId Item ID
- * @param array $itemData Updated item data
- * @return bool True if successful, false otherwise
+ * FINAL FIX: Update menu item (Admin only)
+ * Replace the updateMenuItem function in your functions.php with this version
  */
 function updateMenuItem($itemId, $itemData) {
     global $conn;
     
+    // Prepare all variables individually to avoid reference issues
+    $category_id = (int)$itemData['category_id'];
+    $item_name = $itemData['item_name'];
+    $description = isset($itemData['description']) ? $itemData['description'] : '';
+    $price = (float)$itemData['price'];
+    $image_url = isset($itemData['image_url']) ? $itemData['image_url'] : null;
+    $preparation_time = isset($itemData['preparation_time']) ? (int)$itemData['preparation_time'] : 15;
+    $ingredients = isset($itemData['ingredients']) ? $itemData['ingredients'] : '';
+    $allergens = isset($itemData['allergens']) ? $itemData['allergens'] : '';
+    $calories = isset($itemData['calories']) ? (int)$itemData['calories'] : null;
+    $is_featured = isset($itemData['is_featured']) ? 1 : 0;
+    $sort_order = isset($itemData['sort_order']) ? (int)$itemData['sort_order'] : 0;
+    $item_id = (int)$itemId;
+    
     $stmt = $conn->prepare("UPDATE menu_items SET category_id = ?, item_name = ?, description = ?, price = ?, image_url = ?, preparation_time = ?, ingredients = ?, allergens = ?, calories = ?, is_featured = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?");
-    $stmt->bind_param("isssdissiiii", 
-        $itemData['category_id'],
-        $itemData['item_name'],
-        $itemData['description'],
-        $itemData['price'],
-        $itemData['image_url'],
-        $itemData['preparation_time'],
-        $itemData['ingredients'],
-        $itemData['allergens'],
-        $itemData['calories'],
-        $itemData['is_featured'] ?? false,
-        $itemData['sort_order'] ?? 0,
-        $itemId
+    
+    // Use the individual variables instead of array access
+    $stmt->bind_param("issdsissiiii", 
+        $category_id,
+        $item_name,
+        $description,
+        $price,
+        $image_url,
+        $preparation_time,
+        $ingredients,
+        $allergens,
+        $calories,
+        $is_featured,
+        $sort_order,
+        $item_id
     );
     
     return $stmt->execute();
@@ -787,23 +815,110 @@ function categoryNameExists($categoryName, $excludeCategoryId = null) {
 }
 
 /**
- * Upload menu item image
- * @param array $file File data from $_FILES
- * @return string|bool Filename if successful, false otherwise
+ * FIXED: Upload menu item image with proper error handling
+ * Replace the existing uploadMenuImage function in functions.php
  */
 function uploadMenuImage($file) {
-    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    // Check if file was uploaded
+    if (!isset($file['tmp_name']) || empty($file['tmp_name'])) {
+        error_log("Upload error: No file uploaded");
+        return false;
+    }
+    
+    // Check for upload errors
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        error_log("Upload error: " . $file['error']);
+        return false;
+    }
+    
+    // Validate file type
+    $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    $fileType = $file['type'];
+    
+    // Also check by extension as backup
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    
+    if (!in_array($fileType, $allowedTypes) && !in_array($extension, $allowedExtensions)) {
+        error_log("Upload error: Invalid file type - " . $fileType);
+        return false;
+    }
+    
+    // Validate file size (5MB max)
     $maxSize = 5 * 1024 * 1024; // 5MB
-    
-    if (!in_array($file['type'], $allowedTypes)) {
-        return false;
-    }
-    
     if ($file['size'] > $maxSize) {
+        error_log("Upload error: File too large - " . $file['size']);
         return false;
     }
     
-    return uploadFile($file, 'assets/images/menu/');
+    // Create upload directory if it doesn't exist
+    $uploadDir = 'assets/images/menu/';
+    if (!is_dir($uploadDir)) {
+        if (!mkdir($uploadDir, 0755, true)) {
+            error_log("Upload error: Cannot create directory - " . $uploadDir);
+            return false;
+        }
+    }
+    
+    // Generate unique filename
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $filename = 'menu_' . time() . '_' . uniqid() . '.' . $extension;
+    $filepath = $uploadDir . $filename;
+    
+    // Move uploaded file
+    if (move_uploaded_file($file['tmp_name'], $filepath)) {
+        error_log("Upload success: " . $filepath);
+        return $filename;
+    } else {
+        error_log("Upload error: Cannot move file to - " . $filepath);
+        return false;
+    }
+}
+
+/**
+ * FIXED: Get image URL with proper path checking
+ * Add this helper function to functions.php
+ */
+function getMenuImageUrl($imageName) {
+    if (empty($imageName)) {
+        return null;
+    }
+    
+    $imagePath = 'assets/images/menu/' . $imageName;
+    
+    // Check if file exists
+    if (file_exists($imagePath)) {
+        return SITE_URL . $imagePath;
+    }
+    
+    // If file doesn't exist, return null to show placeholder
+    return null;
+}
+
+/**
+ * FIXED: Debug function to check image status
+ * Add this temporary function to help debug
+ */
+function debugImageStatus($imageName) {
+    if (empty($imageName)) {
+        return "No image name provided";
+    }
+    
+    $imagePath = 'assets/images/menu/' . $imageName;
+    $fullPath = realpath($imagePath);
+    
+    $debug = [
+        'image_name' => $imageName,
+        'image_path' => $imagePath,
+        'full_path' => $fullPath,
+        'file_exists' => file_exists($imagePath),
+        'is_readable' => is_readable($imagePath),
+        'directory_exists' => is_dir('assets/images/menu/'),
+        'directory_writable' => is_writable('assets/images/menu/'),
+        'site_url' => SITE_URL
+    ];
+    
+    return $debug;
 }
 
 /**
