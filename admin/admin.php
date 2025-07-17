@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin Dashboard
+ * FIXED Admin Dashboard
  * Online Food Ordering System - Phase 4
  */
 
@@ -14,7 +14,6 @@ $currentUser = getCurrentUser();
 // Get dashboard data
 $dashboardData = getDashboardStats();
 $recentOrders = getRecentOrders(5);
-$lowStockItems = getLowStockItems(); // Placeholder for future feature
 $systemStatus = getSystemStatus();
 
 $pageTitle = 'Admin Dashboard';
@@ -87,19 +86,19 @@ include '../includes/header.php';
                 </div>
             </a>
             
-            <a href="#" class="action-card">
+            <a href="../menu/menu.php" class="action-card">
                 <div class="action-icon">👥</div>
                 <div class="action-text">
-                    <strong>Customer Management</strong>
+                    <strong>View Public Menu</strong>
                     <span><?php echo $dashboardData['total_customers']; ?> customers</span>
                 </div>
             </a>
             
-            <a href="#" class="action-card">
+            <a href="../compress_existing.php" class="action-card">
                 <div class="action-icon">📈</div>
                 <div class="action-text">
-                    <strong>Reports</strong>
-                    <span>View detailed analytics</span>
+                    <strong>Image Compression</strong>
+                    <span>Optimize menu images</span>
                 </div>
             </a>
         </div>
@@ -156,6 +155,53 @@ include '../includes/header.php';
                         <span class="status-indicator active"></span>
                         <span>Menu Updates</span>
                         <span class="status-text">Synced</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-indicator active"></span>
+                        <span>Image System</span>
+                        <span class="status-text">Operational</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">System Overview</h3>
+        </div>
+        <div class="card-body">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-icon">📝</div>
+                    <div class="stat-content">
+                        <div class="stat-number"><?php echo $dashboardData['pending_orders']; ?></div>
+                        <div class="stat-label">Pending Orders</div>
+                    </div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-icon">🍽️</div>
+                    <div class="stat-content">
+                        <div class="stat-number"><?php echo $dashboardData['total_menu_items']; ?></div>
+                        <div class="stat-label">Active Menu Items</div>
+                    </div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-content">
+                        <div class="stat-number"><?php echo $dashboardData['total_customers']; ?></div>
+                        <div class="stat-label">Total Customers</div>
+                    </div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-icon">💼</div>
+                    <div class="stat-content">
+                        <div class="stat-number">1</div>
+                        <div class="stat-label">Admin Users</div>
                     </div>
                 </div>
             </div>
@@ -243,6 +289,7 @@ include '../includes/header.php';
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 2rem;
+    margin-bottom: 2rem;
 }
 
 .panel {
@@ -305,6 +352,37 @@ include '../includes/header.php';
     color: #64748b;
 }
 
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 0.375rem;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #1e293b;
+}
+
+.stat-label {
+    color: #64748b;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
 @media (max-width: 768px) {
     .dashboard-panels {
         grid-template-columns: 1fr;
@@ -313,7 +391,11 @@ include '../includes/header.php';
     .action-grid {
         grid-template-columns: 1fr;
     }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 
-<?php include '../includes/footer.php'; ?>
+<?php include '../includes/footer.php';

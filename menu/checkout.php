@@ -1,9 +1,9 @@
 <?php
 /**
- * Checkout Page
+ * FIXED Checkout Page - Auto Status Update
  * Online Food Ordering System - Phase 3
  * 
- * Order placement and payment processing
+ * Order placement and payment processing with automatic status updates
  */
 
 require_once '../config.php';
@@ -64,7 +64,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $orderId = createOrderFromCart($orderData);
             
             if ($orderId) {
-                $_SESSION['flash_message']['success'] = 'Order placed successfully! Your order ID is #' . $orderId;
+                // Automatically update order status based on payment method
+                if ($orderData['payment_method'] === 'online') {
+                    // For online payment, mark as confirmed and paid
+                    updateOrderStatus($orderId, 'confirmed');
+                    updateOrderPaymentStatus($orderId, 'paid');
+                    addOrderStatusHistory($orderId, 'confirmed', 'Order confirmed - Online payment received', $currentUser['user_id']);
+                    
+                    $_SESSION['flash_message']['success'] = 'Order placed and payment confirmed! Your order #' . $orderId . ' is being prepared.';
+                } else {
+                    // For cash on delivery, confirm the order but payment is pending
+                    updateOrderStatus($orderId, 'confirmed');
+                    addOrderStatusHistory($orderId, 'confirmed', 'Order confirmed - Cash on delivery', $currentUser['user_id']);
+                    
+                    $_SESSION['flash_message']['success'] = 'Order placed successfully! Your order #' . $orderId . ' has been confirmed.';
+                }
+                
                 header('Location: ../orders/order-details.php?id=' . $orderId);
                 exit();
             } else {
@@ -155,17 +170,27 @@ include '../includes/header.php';
                             <input type="radio" name="payment_method" value="cash" checked>
                             <span class="payment-info">
                                 <strong>Cash on Delivery</strong>
-                                <small>Pay when your order arrives</small>
+                                <small>Pay when your order arrives • Order will be confirmed immediately</small>
                             </span>
                         </label>
                         
                         <label class="payment-option">
                             <input type="radio" name="payment_method" value="online">
                             <span class="payment-info">
-                                <strong>Online Payment</strong>
-                                <small>Pay now with card or e-wallet</small>
+                                <strong>Online Payment (Instant Confirmation)</strong>
+                                <small>Pay now with card or e-wallet • Order confirmed immediately</small>
                             </span>
                         </label>
+                    </div>
+                    
+                    <!-- Payment Notice -->
+                    <div class="payment-notice">
+                        <div class="notice-icon">ℹ️</div>
+                        <div class="notice-content">
+                            <strong>Order Processing:</strong>
+                            <p>• <strong>Cash on Delivery:</strong> Order confirmed immediately, pay upon delivery</p>
+                            <p>• <strong>Online Payment:</strong> Order confirmed and payment processed instantly</p>
+                        </div>
                     </div>
                 </div>
                 
@@ -174,6 +199,10 @@ include '../includes/header.php';
                     <button type="submit" class="btn btn-primary btn-full btn-large">
                         Place Order - <?php echo formatCurrency($grandTotal); ?>
                     </button>
+                    <p class="order-confirmation-text">
+                        By placing this order, you agree to our terms and conditions. 
+                        Your order will be confirmed immediately and preparation will begin.
+                    </p>
                 </div>
             </form>
         </div>
@@ -221,6 +250,7 @@ include '../includes/header.php';
                     <h4>Delivery Information</h4>
                     <p><strong>Estimated Time:</strong> 30-45 minutes</p>
                     <p><strong>Delivery Hours:</strong> 10:00 AM - 10:00 PM</p>
+                    <p><strong>Order Status:</strong> Confirmed immediately upon submission</p>
                 </div>
             </div>
         </div>
@@ -266,6 +296,7 @@ include '../includes/header.php';
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 .payment-option {
@@ -304,6 +335,34 @@ include '../includes/header.php';
 .payment-info small {
     color: #64748b;
     font-size: 0.875rem;
+}
+
+.payment-notice {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 0.5rem;
+    color: #0c4a6e;
+}
+
+.notice-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.notice-content p {
+    margin: 0.25rem 0;
+    font-size: 0.875rem;
+}
+
+.order-confirmation-text {
+    font-size: 0.875rem;
+    color: #64748b;
+    text-align: center;
+    margin-top: 1rem;
+    margin-bottom: 0;
 }
 
 .summary-card {
@@ -415,6 +474,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const submitBtn = form.querySelector('button[type="submit"]');
             if (submitBtn) {
                 FoodOrderingApp.showLoading(submitBtn);
+                
+                // Add processing message
+                const processingMsg = document.createElement('div');
+                processingMsg.className = 'alert alert-info';
+                processingMsg.style.marginTop = '1rem';
+                processingMsg.innerHTML = '⏳ Processing your order... Please wait.';
+                submitBtn.parentNode.appendChild(processingMsg);
             }
         });
     }
@@ -430,6 +496,14 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add active class to selected option
             this.closest('.payment-option').classList.add('active');
+            
+            // Update button text based on payment method
+            const submitBtn = document.querySelector('button[type="submit"]');
+            if (this.value === 'online') {
+                submitBtn.innerHTML = 'Pay Now - <?php echo formatCurrency($grandTotal); ?>';
+            } else {
+                submitBtn.innerHTML = 'Place Order - <?php echo formatCurrency($grandTotal); ?>';
+            }
         });
     });
 });

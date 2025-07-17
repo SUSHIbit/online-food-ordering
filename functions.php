@@ -1,7 +1,7 @@
 <?php
 /**
  * Complete Functions File - Online Food Ordering System
- * Updated with Auto Image Compression - FULL VERSION
+ * Updated with Auto Image Compression + Payment Management - FULL VERSION
  */
 
 /**
@@ -396,7 +396,7 @@ function categoryNameExists($categoryName, $excludeCategoryId = null) {
 }
 
 // ============================================================================
-// IMAGE COMPRESSION FUNCTIONS (NEW!)
+// IMAGE COMPRESSION FUNCTIONS
 // ============================================================================
 
 /**
@@ -1053,7 +1053,7 @@ function createOrderFromCart($orderData) {
     if (empty($cartItems)) {
         return false;
     }
-    
+
     $subtotal = getCartTotal();
     $deliveryFee = 5.00;
     $tax = $subtotal * 0.06;
@@ -1163,6 +1163,23 @@ function updateOrderStatus($orderId, $status) {
 }
 
 /**
+ * Update order payment status
+ */
+function updateOrderPaymentStatus($orderId, $paymentStatus) {
+    global $conn;
+    $validStatuses = ['pending', 'paid', 'failed', 'refunded'];
+    
+    if (!in_array($paymentStatus, $validStatuses)) {
+        return false;
+    }
+    
+    $stmt = $conn->prepare("UPDATE orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?");
+    $stmt->bind_param("si", $paymentStatus, $orderId);
+    
+    return $stmt->execute();
+}
+
+/**
  * Cancel order
  */
 function cancelOrder($orderId, $userId = null) {
@@ -1226,6 +1243,49 @@ function getAdminOrders($statusFilter = null, $dateFilter = null, $limit = 50) {
 }
 
 /**
+ * Get admin orders with enhanced filtering including payment status
+ */
+function getAdminOrdersEnhanced($statusFilter = null, $dateFilter = null, $paymentFilter = null, $limit = 50) {
+    global $conn;
+    
+    $sql = "SELECT o.*, u.full_name, u.email 
+            FROM orders o 
+            JOIN users u ON o.user_id = u.user_id 
+            WHERE 1=1";
+    $params = [];
+    $types = "";
+    
+    if ($statusFilter) {
+        $sql .= " AND o.order_status = ?";
+        $params[] = $statusFilter;
+        $types .= "s";
+    }
+    
+    if ($dateFilter) {
+        $sql .= " AND DATE(o.created_at) = ?";
+        $params[] = $dateFilter;
+        $types .= "s";
+    }
+    
+    if ($paymentFilter) {
+        $sql .= " AND o.payment_status = ?";
+        $params[] = $paymentFilter;
+        $types .= "s";
+    }
+    
+    $sql .= " ORDER BY o.created_at DESC LIMIT ?";
+    $params[] = $limit;
+    $types .= "i";
+    
+    $stmt = $conn->prepare($sql);
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
  * Get order statistics
  */
 function getOrderStatistics() {
@@ -1246,6 +1306,47 @@ function getOrderStatistics() {
     $stats['total_revenue'] = $result->fetch_assoc()['total'] ?? 0;
     
     return $stats;
+}
+
+/**
+ * Get payment statistics
+ */
+function getPaymentStatistics() {
+    global $conn;
+    
+    $stats = [];
+    
+    // Total pending payments
+    $result = $conn->query("SELECT COUNT(*) as count FROM orders WHERE payment_status = 'pending'");
+    $stats['pending_payments'] = $result->fetch_assoc()['count'];
+    
+    // Pending payment amount
+    $result = $conn->query("SELECT SUM(total_amount) as total FROM orders WHERE payment_status = 'pending'");
+    $stats['pending_amount'] = $result->fetch_assoc()['total'] ?? 0;
+    
+    // Delivered orders with pending payments
+    $result = $conn->query("SELECT COUNT(*) as count FROM orders WHERE payment_status = 'pending' AND order_status = 'delivered'");
+    $stats['delivered_unpaid'] = $result->fetch_assoc()['count'];
+    
+    return $stats;
+}
+
+/**
+ * Get orders with pending payments (for admin dashboard)
+ */
+function getOrdersWithPendingPayments($limit = 10) {
+    global $conn;
+    
+    $stmt = $conn->prepare("SELECT o.*, u.full_name 
+                           FROM orders o 
+                           JOIN users u ON o.user_id = u.user_id 
+                           WHERE o.payment_status = 'pending' 
+                           AND o.order_status IN ('delivered', 'ready', 'confirmed', 'preparing')
+                           ORDER BY o.created_at DESC 
+                           LIMIT ?");
+    $stmt->bind_param("i", $limit);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
 /**
@@ -1305,8 +1406,15 @@ function getRecentOrders($limit = 10) {
 function addOrderStatusHistory($orderId, $status, $notes = '', $changedBy = null) {
     global $conn;
     
-    $stmt = $conn->prepare("INSERT INTO order_status_history (order_id, status, notes, changed_by) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("issi", $orderId, $status, $notes, $changedBy);
+    // If status is null, it means we're just adding a note (like payment confirmation)
+    if ($status === null) {
+        $stmt = $conn->prepare("INSERT INTO order_status_history (order_id, status, notes, changed_by) VALUES (?, 'payment_update', ?, ?)");
+        $stmt->bind_param("isi", $orderId, $notes, $changedBy);
+    } else {
+        $stmt = $conn->prepare("INSERT INTO order_status_history (order_id, status, notes, changed_by) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("issi", $orderId, $status, $notes, $changedBy);
+    }
+    
     return $stmt->execute();
 }
 
@@ -1411,6 +1519,31 @@ function uploadFile($file, $directory = 'assets/images/') {
     
     if (move_uploaded_file($file['tmp_name'], $filepath)) {
         return $filename;
+    }
+    
+    return false;
+}
+
+/**
+ * Get low stock items (placeholder function for future inventory management)
+ */
+function getLowStockItems($threshold = 10) {
+    // This is a placeholder function for future inventory management
+    // For now, return empty array since we don't have stock management yet
+    return [];
+}
+
+/**
+ * Auto-confirm payment when order is delivered (for cash orders)
+ */
+function autoConfirmCashPayment($orderId) {
+    global $conn;
+    
+    $order = getOrderById($orderId);
+    if ($order && $order['payment_status'] === 'pending' && $order['order_status'] === 'delivered') {
+        updateOrderPaymentStatus($orderId, 'paid');
+        addOrderStatusHistory($orderId, null, 'Cash payment auto-confirmed on delivery', null);
+        return true;
     }
     
     return false;
