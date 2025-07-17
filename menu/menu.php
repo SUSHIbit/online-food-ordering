@@ -1,10 +1,9 @@
 <?php
 /**
- * Menu Display Page - COMPLETE FIXED VERSION
+ * Clean Menu Display Page - Production Ready
  * Online Food Ordering System - Phase 3
  * 
  * Public menu display with categories, search, and filtering
- * FIXED: Image display issues with comprehensive debugging
  */
 
 require_once '../config.php';
@@ -40,98 +39,29 @@ if (!empty($searchTerm)) {
 
 // Get featured items for homepage section
 $featuredItems = getFeaturedMenuItems(6);
-$menuPriceRange = getMenuPriceRange();
 
 // Page configuration
 $pageTitle = 'Menu';
 $bodyClass = 'menu-page';
 
-// FIXED: Comprehensive image display function with debugging
+// Clean image display function
 function getImageDisplay($item) {
     if (empty($item['image_url'])) {
         return null;
     }
     
-    // Try multiple possible paths with proper path resolution
-    $possiblePaths = [
-        // From menu/ directory going up one level
-        '../assets/images/menu/' . $item['image_url'],
-        // Direct path (if running from root)
-        'assets/images/menu/' . $item['image_url'],
-        // Alternative common locations
-        '../images/menu/' . $item['image_url'],
-        '../uploads/menu/' . $item['image_url'],
-        '../uploads/' . $item['image_url']
-    ];
+    $imagePath = '../assets/images/menu/' . $item['image_url'];
     
-    foreach ($possiblePaths as $path) {
-        if (file_exists($path)) {
-            // Convert file path to proper URL
-            if (strpos($path, '../') === 0) {
-                // Remove ../ from beginning and create URL
-                $urlPath = substr($path, 3); // Remove '../'
-            } else {
-                $urlPath = $path;
-            }
-            return SITE_URL . $urlPath;
-        }
+    if (file_exists($imagePath)) {
+        return SITE_URL . 'assets/images/menu/' . $item['image_url'];
     }
     
     return null;
 }
 
-// Debug function for troubleshooting
-function getImageDebugInfo($item) {
-    if (empty($item['image_url'])) {
-        return "No image URL";
-    }
-    
-    $debug = [];
-    $debug['filename'] = $item['image_url'];
-    
-    $testPaths = [
-        '../assets/images/menu/' . $item['image_url'],
-        'assets/images/menu/' . $item['image_url'],
-        '../images/menu/' . $item['image_url']
-    ];
-    
-    foreach ($testPaths as $path) {
-        $debug['paths'][$path] = file_exists($path) ? 'EXISTS' : 'MISSING';
-    }
-    
-    return $debug;
-}
-
 // Include header
 include '../includes/header.php';
 ?>
-
-<!-- Quick Debug Panel (only show when debugging) -->
-<?php if (isset($_GET['debug']) && (isAdmin() || isset($_GET['force']))): ?>
-<div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 15px; border-radius: 5px;">
-    <h4>🔧 Debug Information</h4>
-    <p><strong>SITE_URL:</strong> <?php echo SITE_URL; ?></p>
-    <p><strong>Current directory:</strong> <?php echo __DIR__; ?></p>
-    <p><strong>Assets directory exists:</strong> <?php echo is_dir('../assets/images/menu/') ? '✅ YES' : '❌ NO'; ?></p>
-    <p><strong>Directory is readable:</strong> <?php echo is_readable('../assets/images/menu/') ? '✅ YES' : '❌ NO'; ?></p>
-    <?php if (is_dir('../assets/images/menu/')): ?>
-        <p><strong>Files in menu directory:</strong></p>
-        <ul style="margin: 5px 0;">
-        <?php 
-        $files = scandir('../assets/images/menu/');
-        $imageFiles = array_filter($files, function($f) { return !in_array($f, ['.', '..']); });
-        if (empty($imageFiles)): ?>
-            <li>No files found</li>
-        <?php else: ?>
-            <?php foreach ($imageFiles as $file): ?>
-                <li><?php echo htmlspecialchars($file); ?></li>
-            <?php endforeach; ?>
-        <?php endif; ?>
-        </ul>
-    <?php endif; ?>
-    <p><em>Add ?debug=1 to URL to see this panel. Remove ?debug=1 to hide it.</em></p>
-</div>
-<?php endif; ?>
 
 <!-- Add CSRF Token Meta Tag -->
 <meta name="csrf-token" content="<?php echo generateCSRFToken(); ?>">
@@ -222,7 +152,7 @@ include '../includes/header.php';
         </div>
     </div>
     
-    <!-- Featured Items Section (show only on main menu page) -->
+    <!-- Featured Items Section -->
     <?php if (!$selectedCategory && empty($searchTerm) && empty($priceRange) && !empty($featuredItems)): ?>
         <div class="featured-section">
             <div class="section-header">
@@ -233,21 +163,14 @@ include '../includes/header.php';
             <div class="menu-grid featured-grid">
                 <?php foreach ($featuredItems as $item): ?>
                     <div class="menu-item featured-item">
-                        <!-- FIXED: Image Display with Comprehensive Error Handling -->
                         <div class="item-image">
                             <?php 
                             $imageUrl = getImageDisplay($item);
-                            $debugInfo = isset($_GET['debug']) ? getImageDebugInfo($item) : null;
                             
                             if ($imageUrl): ?>
                                 <img src="<?php echo $imageUrl; ?>" 
                                      alt="<?php echo htmlspecialchars($item['item_name']); ?>"
-                                     loading="lazy"
-                                     style="width: 100%; height: 100%; object-fit: cover;"
-                                     onerror="console.log('Image failed to load: <?php echo addslashes($imageUrl); ?>'); this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="placeholder-image" style="display: none;">
-                                    <span class="placeholder-icon">🍽️</span>
-                                </div>
+                                     loading="lazy">
                             <?php else: ?>
                                 <div class="placeholder-image">
                                     <span class="placeholder-icon">🍽️</span>
@@ -255,18 +178,6 @@ include '../includes/header.php';
                             <?php endif; ?>
                             
                             <div class="featured-badge">Featured</div>
-                            
-                            <!-- Debug overlay (only when debugging) -->
-                            <?php if (isset($_GET['debug']) && $debugInfo): ?>
-                                <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: white; font-size: 9px; padding: 3px; line-height: 1.2;">
-                                    <strong><?php echo htmlspecialchars($item['item_name']); ?></strong><br>
-                                    DB: <?php echo htmlspecialchars($debugInfo['filename']); ?><br>
-                                    <?php foreach ($debugInfo['paths'] as $path => $status): ?>
-                                        <?php echo basename($path) . ':' . $status; ?><br>
-                                    <?php endforeach; ?>
-                                    URL: <?php echo $imageUrl ? '✅' : '❌'; ?>
-                                </div>
-                            <?php endif; ?>
                         </div>
                         
                         <div class="item-content">
@@ -344,21 +255,14 @@ include '../includes/header.php';
             <div class="menu-grid">
                 <?php foreach ($menuItems as $item): ?>
                     <div class="menu-item">
-                        <!-- FIXED: Image Display with Comprehensive Error Handling -->
                         <div class="item-image">
                             <?php 
                             $imageUrl = getImageDisplay($item);
-                            $debugInfo = isset($_GET['debug']) ? getImageDebugInfo($item) : null;
                             
                             if ($imageUrl): ?>
                                 <img src="<?php echo $imageUrl; ?>" 
                                      alt="<?php echo htmlspecialchars($item['item_name']); ?>"
-                                     loading="lazy"
-                                     style="width: 100%; height: 100%; object-fit: cover;"
-                                     onerror="console.log('Image failed to load: <?php echo addslashes($imageUrl); ?>'); this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="placeholder-image" style="display: none;">
-                                    <span class="placeholder-icon">🍽️</span>
-                                </div>
+                                     loading="lazy">
                             <?php else: ?>
                                 <div class="placeholder-image">
                                     <span class="placeholder-icon">🍽️</span>
@@ -367,18 +271,6 @@ include '../includes/header.php';
                             
                             <?php if ($item['is_featured']): ?>
                                 <div class="featured-badge">Featured</div>
-                            <?php endif; ?>
-                            
-                            <!-- Debug overlay (only when debugging) -->
-                            <?php if (isset($_GET['debug']) && $debugInfo): ?>
-                                <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: white; font-size: 9px; padding: 3px; line-height: 1.2;">
-                                    <strong><?php echo htmlspecialchars($item['item_name']); ?></strong><br>
-                                    DB: <?php echo htmlspecialchars($debugInfo['filename']); ?><br>
-                                    <?php foreach ($debugInfo['paths'] as $path => $status): ?>
-                                        <?php echo basename($path) . ':' . $status; ?><br>
-                                    <?php endforeach; ?>
-                                    URL: <?php echo $imageUrl ? '✅' : '❌'; ?>
-                                </div>
                             <?php endif; ?>
                         </div>
                         
