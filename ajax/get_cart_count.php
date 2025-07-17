@@ -7,13 +7,15 @@
 require_once '../config.php';
 require_once '../functions.php';
 
+// Set JSON response header FIRST
+header('Content-Type: application/json');
+
 // Check if request is AJAX
 if (!isset($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) !== 'xmlhttprequest') {
     http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Invalid request']);
     exit();
 }
-
-header('Content-Type: application/json');
 
 // Check if user is logged in and is customer
 if (!isLoggedIn()) {
@@ -34,8 +36,10 @@ if (isset($_SESSION['cart']) && is_array($_SESSION['cart'])) {
     }
 }
 
+// Return proper JSON response
 echo json_encode([
     'success' => true, 
     'count' => $cartCount
 ]);
+exit();
 ?>

@@ -1,7 +1,7 @@
 <?php
 /**
  * Fixed Navigation Component
- * Online Food Ordering System - Bug Fixes
+ * Online Food Ordering System - Working Mobile Menu
  */
 
 // Get current page for active navigation highlighting
@@ -71,11 +71,11 @@ $currentUser = getCurrentUser();
             
             <!-- User Profile Dropdown - FIXED -->
             <li class="nav-item nav-dropdown">
-                <a href="#" class="nav-link nav-dropdown-toggle" onclick="return false;">
-                    <?php echo htmlspecialchars($currentUser['full_name']); ?>
+                <a href="#" class="nav-link nav-dropdown-toggle" onclick="toggleDropdown(event)">
+                    <?php echo htmlspecialchars($currentUser['username']); ?>
                     <span class="dropdown-arrow">▼</span>
                 </a>
-                <ul class="nav-dropdown-menu">
+                <ul class="nav-dropdown-menu" id="user-dropdown">
                     <li>
                         <a href="<?php echo SITE_URL; ?>auth/profile.php" class="nav-dropdown-link">
                             Profile
@@ -111,7 +111,7 @@ $currentUser = getCurrentUser();
 </nav>
 
 <style>
-/* Fixed Navigation Styles */
+/* FIXED Navigation Styles */
 .nav-list {
     display: flex;
     list-style: none;
@@ -141,7 +141,7 @@ $currentUser = getCurrentUser();
     transition: transform 0.2s ease;
 }
 
-/* FIXED DROPDOWN MENU */
+/* Dropdown Menu */
 .nav-dropdown-menu {
     display: none;
     position: absolute;
@@ -180,21 +180,16 @@ $currentUser = getCurrentUser();
     color: #334155 !important;
 }
 
-/* Show dropdown on hover with better timing */
-.nav-dropdown:hover .nav-dropdown-menu {
+/* Show dropdown on CLICK only - NO HOVER */
+.nav-dropdown-menu {
+    display: none;
+}
+
+.nav-dropdown-menu.show {
     display: block;
 }
 
-.nav-dropdown:hover .dropdown-arrow {
-    transform: rotate(180deg);
-}
-
-/* Keep dropdown visible when hovering over menu */
-.nav-dropdown-menu:hover {
-    display: block;
-}
-
-/* Cart count styling - FIXED */
+/* Cart count styling */
 .cart-count {
     background-color: #ef4444;
     color: white;
@@ -213,25 +208,57 @@ $currentUser = getCurrentUser();
     display: inline-block;
 }
 
-/* Mobile Navigation */
+/* FIXED Mobile Navigation */
 @media (max-width: 768px) {
+    .nav {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: #334155;
+        border-top: 1px solid #475569;
+        z-index: 999;
+    }
+    
+    .nav.active {
+        display: block;
+    }
+    
     .nav-list {
         flex-direction: column;
         gap: 0;
         width: 100%;
+        padding: 0;
     }
     
     .nav-item {
         width: 100%;
+        border-bottom: 1px solid #475569;
+    }
+    
+    .nav-item:last-child {
+        border-bottom: none;
     }
     
     .nav-link {
         display: block;
-        padding: 0.75rem 1rem;
-        border-bottom: 1px solid #475569;
+        padding: 1rem;
         width: 100%;
+        color: white !important;
+        text-decoration: none;
+        transition: background-color 0.2s ease;
     }
     
+    .nav-link:hover {
+        background-color: #475569;
+    }
+    
+    .nav-link.active {
+        background-color: #64748b;
+    }
+    
+    /* Mobile dropdown */
     .nav-dropdown-menu {
         position: static;
         display: none;
@@ -248,9 +275,10 @@ $currentUser = getCurrentUser();
     }
     
     .nav-dropdown-link {
-        padding-left: 2rem !important;
+        padding: 0.75rem 2rem !important;
         background-color: #475569 !important;
         color: #e2e8f0 !important;
+        border-bottom: 1px solid #64748b;
     }
     
     .nav-dropdown-link:hover {
@@ -261,198 +289,67 @@ $currentUser = getCurrentUser();
     .dropdown-arrow {
         margin-left: auto;
     }
+    
+    .cart-count {
+        position: relative;
+        top: auto;
+        right: auto;
+        margin-left: 0.5rem;
+    }
 }
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Update cart count on page load
-    updateCartCount();
+// FIXED: Click-only dropdown function
+function toggleDropdown(event) {
+    event.preventDefault();
+    const dropdown = document.getElementById('user-dropdown');
+    const arrow = event.target.querySelector('.dropdown-arrow') || event.target.parentNode.querySelector('.dropdown-arrow');
     
-    // Mobile dropdown functionality
-    const dropdownToggles = document.querySelectorAll('.nav-dropdown-toggle');
-    
-    dropdownToggles.forEach(toggle => {
-        toggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            if (window.innerWidth <= 768) {
-                const dropdown = toggle.parentNode;
-                const menu = dropdown.querySelector('.nav-dropdown-menu');
-                
-                // Toggle menu visibility
-                if (menu.classList.contains('show')) {
-                    menu.classList.remove('show');
-                    toggle.querySelector('.dropdown-arrow').style.transform = 'rotate(0deg)';
-                } else {
-                    menu.classList.add('show');
-                    toggle.querySelector('.dropdown-arrow').style.transform = 'rotate(180deg)';
-                }
-            }
-        });
-    });
-});
-
-// FIXED: Update cart count function
-function updateCartCount() {
-    const cartCountElement = document.getElementById('cart-count');
-    if (!cartCountElement) return;
-    
-    <?php if (isCustomer()): ?>
-        // Make AJAX request to get cart count
-        fetch('<?php echo SITE_URL; ?>ajax/get_cart_count.php', {
-            method: 'GET',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updateCartCountDisplay(data.count);
-            }
-        })
-        .catch(error => {
-            console.log('Cart count update failed:', error);
-            cartCountElement.style.display = 'none';
-        });
-    <?php else: ?>
-        // Not a customer, hide cart count
-        cartCountElement.style.display = 'none';
-    <?php endif; ?>
+    if (dropdown.classList.contains('show')) {
+        dropdown.classList.remove('show');
+        if (arrow) arrow.style.transform = 'rotate(0deg)';
+    } else {
+        dropdown.classList.add('show');
+        if (arrow) arrow.style.transform = 'rotate(180deg)';
+    }
 }
 
-// FIXED: Update cart count display
-function updateCartCountDisplay(count) {
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('user-dropdown');
+    const toggle = document.querySelector('.nav-dropdown-toggle');
+    
+    if (dropdown && toggle && !toggle.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.classList.remove('show');
+        const arrow = toggle.querySelector('.dropdown-arrow');
+        if (arrow) arrow.style.transform = 'rotate(0deg)';
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Update cart count on page load
+    if (typeof updateCartCount === 'function') {
+        updateCartCount();
+    }
+});
+
+// Make functions globally available for other scripts
+window.updateCartCount = window.updateCartCount || function() {
+    console.log('updateCartCount function not yet loaded');
+};
+
+window.updateCartCountDisplay = window.updateCartCountDisplay || function(count) {
     const cartCountElement = document.getElementById('cart-count');
     if (cartCountElement) {
         if (count > 0) {
             cartCountElement.textContent = count;
             cartCountElement.classList.add('has-items');
-            cartCountElement.style.display = 'flex';
+            cartCountElement.style.display = 'inline-block';
         } else {
             cartCountElement.classList.remove('has-items');
             cartCountElement.style.display = 'none';
         }
     }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Update cart count on page load
-    updateCartCount();
-    
-    // Enhanced dropdown handling for stability
-    const dropdowns = document.querySelectorAll('.nav-dropdown');
-    
-    dropdowns.forEach(dropdown => {
-        const toggle = dropdown.querySelector('.nav-dropdown-toggle');
-        const menu = dropdown.querySelector('.nav-dropdown-menu');
-        const arrow = dropdown.querySelector('.dropdown-arrow');
-        
-        if (!toggle || !menu) return;
-        
-        let hoverTimeout;
-        let isMenuOpen = false;
-        
-        // Mouse enter on dropdown container
-        dropdown.addEventListener('mouseenter', function() {
-            clearTimeout(hoverTimeout);
-            if (!isMenuOpen) {
-                showDropdown();
-            }
-        });
-        
-        // Mouse leave on dropdown container
-        dropdown.addEventListener('mouseleave', function() {
-            hoverTimeout = setTimeout(() => {
-                hideDropdown();
-            }, 150); // Small delay to prevent accidental closes
-        });
-        
-        // Keep menu open when hovering over it
-        menu.addEventListener('mouseenter', function() {
-            clearTimeout(hoverTimeout);
-        });
-        
-        // Close when leaving menu
-        menu.addEventListener('mouseleave', function() {
-            hoverTimeout = setTimeout(() => {
-                hideDropdown();
-            }, 100);
-        });
-        
-        // Click handling for mobile
-        toggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            if (window.innerWidth <= 768) {
-                // Mobile behavior
-                if (menu.classList.contains('show')) {
-                    hideDropdown();
-                } else {
-                    showDropdown();
-                }
-            }
-        });
-        
-        // Prevent menu clicks from closing dropdown
-        menu.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-        
-        function showDropdown() {
-            menu.style.display = 'block';
-            menu.classList.add('show');
-            if (arrow) arrow.style.transform = 'rotate(180deg)';
-            isMenuOpen = true;
-        }
-        
-        function hideDropdown() {
-            menu.style.display = 'none';
-            menu.classList.remove('show');
-            if (arrow) arrow.style.transform = 'rotate(0deg)';
-            isMenuOpen = false;
-        }
-        
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!dropdown.contains(e.target)) {
-                hideDropdown();
-            }
-        });
-    });
-    
-    // Mobile navigation toggle
-    const mobileToggle = document.querySelector('.mobile-nav-toggle');
-    const nav = document.querySelector('.nav');
-    
-    if (mobileToggle && nav) {
-        mobileToggle.addEventListener('click', function() {
-            nav.classList.toggle('active');
-            
-            const icon = mobileToggle.querySelector('i') || mobileToggle;
-            if (nav.classList.contains('active')) {
-                icon.innerHTML = '✕';
-            } else {
-                icon.innerHTML = '☰';
-            }
-        });
-        
-        // Close mobile menu when clicking on nav links
-        const navLinks = document.querySelectorAll('.nav-link');
-        navLinks.forEach(link => {
-            link.addEventListener('click', function() {
-                if (window.innerWidth <= 768) {
-                    nav.classList.remove('active');
-                    const icon = mobileToggle.querySelector('i') || mobileToggle;
-                    icon.innerHTML = '☰';
-                }
-            });
-        });
-    }
-});
-
-// Make functions globally available
-window.updateCartCount = updateCartCount;
-window.updateCartCountDisplay = updateCartCountDisplay;
+};
 </script>

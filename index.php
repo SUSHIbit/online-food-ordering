@@ -38,7 +38,7 @@ include 'includes/header.php';
                 <a href="<?php echo SITE_URL; ?>auth/register.php" class="btn btn-primary btn-large">
                     Get Started
                 </a>
-                <a href="<?php echo SITE_URL; ?>menu/menu.php" class="btn btn-outline btn-large">
+                <a href="<?php echo SITE_URL; ?>menu/menu.php" class="btn btn-outline btn-large browse-menu-btn">
                     Browse Menu
                 </a>
             <?php endif; ?>
@@ -225,10 +225,24 @@ include 'includes/header.php';
     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
 }
 
+/* FIXED: Browse Menu Button - Make text visible */
+.browse-menu-btn {
+    background-color: transparent !important;
+    color: white !important;
+    border: 2px solid white !important;
+}
+
+.browse-menu-btn:hover {
+    background-color: white !important;
+    color: #334155 !important;
+    border-color: white !important;
+}
+
+/* FIXED: Statistics Section - Dark text for visibility */
 .stats-section {
     padding: 3rem 0;
-    background-color: #334155;
-    color: white;
+    background-color: #f8fafc; /* Changed to light background */
+    color: #1e293b;
 }
 
 .stat-card {
@@ -238,13 +252,13 @@ include 'includes/header.php';
 .stat-number {
     font-size: 2.5rem;
     font-weight: bold;
-    color: white;
+    color: #1e293b !important; /* Dark text for visibility */
     margin-bottom: 0.5rem;
 }
 
 .stat-label {
     font-size: 1rem;
-    color: #94a3b8;
+    color: #64748b !important; /* Dark gray for visibility */
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }

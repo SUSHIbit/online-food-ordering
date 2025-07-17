@@ -1,12 +1,10 @@
 /**
- * Main JavaScript File
- * Online Food Ordering System - Fixed Version
- * 
- * Contains all functionality for the application
+ * Main JavaScript File - AJAX ERRORS FIXED
+ * Online Food Ordering System
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize all components
+    // Initialize all components safely
     initMobileNavigation();
     initFormValidation();
     initModalHandlers();
@@ -14,42 +12,59 @@ document.addEventListener('DOMContentLoaded', function() {
     initPasswordToggle();
     initConfirmDialogs();
     
-    // Initialize menu-specific functionality
+    // Initialize menu-specific functionality only if on menu page
     if (document.querySelector('.menu-page')) {
         initMenuFunctionality();
     }
     
-    // Initialize cart count
-    updateCartCount();
+    // Initialize cart count safely - ONLY for customers
+    if (isCustomerPage()) {
+        updateCartCount();
+    }
 });
 
 /**
- * Mobile Navigation Toggle
+ * Check if current user is customer (avoid unnecessary AJAX calls)
+ */
+function isCustomerPage() {
+    // Check if cart element exists (indicates customer page)
+    return document.getElementById('cart-count') !== null;
+}
+
+/**
+ * Mobile Navigation Toggle - FIXED
  */
 function initMobileNavigation() {
     const mobileToggle = document.querySelector('.mobile-nav-toggle');
     const nav = document.querySelector('.nav');
     
     if (mobileToggle && nav) {
-        mobileToggle.addEventListener('click', function() {
+        mobileToggle.addEventListener('click', function(e) {
+            e.preventDefault();
             nav.classList.toggle('active');
             
-            // Change icon based on state
-            const icon = mobileToggle.querySelector('i') || mobileToggle;
-            if (nav.classList.contains('active')) {
-                icon.innerHTML = '✕';
-            } else {
-                icon.innerHTML = '☰';
+            // Update button text
+            const span = mobileToggle.querySelector('span');
+            if (span) {
+                if (nav.classList.contains('active')) {
+                    span.innerHTML = '✕';
+                } else {
+                    span.innerHTML = '☰';
+                }
             }
         });
         
         // Close menu when clicking on nav links
-        const navLinks = document.querySelectorAll('.nav-link');
+        const navLinks = nav.querySelectorAll('.nav-link');
         navLinks.forEach(link => {
             link.addEventListener('click', function() {
-                nav.classList.remove('active');
-                const icon = mobileToggle.querySelector('i') || mobileToggle;
-                icon.innerHTML = '☰';
+                if (window.innerWidth <= 768) {
+                    nav.classList.remove('active');
+                    const span = mobileToggle.querySelector('span');
+                    if (span) {
+                        span.innerHTML = '☰';
+                    }
+                }
             });
         });
     }
@@ -76,7 +91,6 @@ function initFormValidation() {
             });
             
             input.addEventListener('input', function() {
-                // Remove error styling on input
                 clearFieldError(input);
             });
         });
@@ -107,21 +121,17 @@ function validateField(field) {
     const type = field.type;
     const required = field.hasAttribute('required');
     
-    // Clear previous errors
     clearFieldError(field);
     
-    // Required field validation
     if (required && !value) {
         showFieldError(field, 'This field is required');
         return false;
     }
     
-    // Skip further validation if field is empty and not required
     if (!value && !required) {
         return true;
     }
     
-    // Email validation
     if (type === 'email' || field.name === 'email') {
         if (!isValidEmail(value)) {
             showFieldError(field, 'Please enter a valid email address');
@@ -129,7 +139,6 @@ function validateField(field) {
         }
     }
     
-    // Password validation
     if (type === 'password' || field.name === 'password') {
         if (value.length < 6) {
             showFieldError(field, 'Password must be at least 6 characters');
@@ -137,7 +146,6 @@ function validateField(field) {
         }
     }
     
-    // Phone validation
     if (field.name === 'phone' || field.type === 'tel') {
         if (!isValidPhone(value)) {
             showFieldError(field, 'Please enter a valid phone number');
@@ -145,7 +153,6 @@ function validateField(field) {
         }
     }
     
-    // Confirm password validation
     if (field.name === 'confirm_password') {
         const passwordField = document.querySelector('input[name="password"]');
         if (passwordField && value !== passwordField.value) {
@@ -163,13 +170,11 @@ function validateField(field) {
 function showFieldError(field, message) {
     field.classList.add('error');
     
-    // Remove existing error message
     const existingError = field.parentNode.querySelector('.field-error');
     if (existingError) {
         existingError.remove();
     }
     
-    // Add error message
     const errorDiv = document.createElement('div');
     errorDiv.className = 'field-error';
     errorDiv.style.color = '#ef4444';
@@ -212,7 +217,6 @@ function isValidPhone(phone) {
  * Modal Handlers
  */
 function initModalHandlers() {
-    // Modal triggers
     const modalTriggers = document.querySelectorAll('[data-modal]');
     modalTriggers.forEach(trigger => {
         trigger.addEventListener('click', function(e) {
@@ -222,7 +226,6 @@ function initModalHandlers() {
         });
     });
     
-    // Modal close buttons
     const closeButtons = document.querySelectorAll('.modal-close, [data-modal-close]');
     closeButtons.forEach(button => {
         button.addEventListener('click', function() {
@@ -233,7 +236,6 @@ function initModalHandlers() {
         });
     });
     
-    // Close modal on backdrop click
     const modals = document.querySelectorAll('.modal');
     modals.forEach(modal => {
         modal.addEventListener('click', function(e) {
@@ -243,7 +245,6 @@ function initModalHandlers() {
         });
     });
     
-    // Close modal on Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             const activeModal = document.querySelector('.modal.active');
@@ -280,10 +281,8 @@ function closeModal(modalId) {
  * Alert Handlers
  */
 function initAlertHandlers() {
-    // Auto-hide alerts after 5 seconds
     const alerts = document.querySelectorAll('.alert');
     alerts.forEach(alert => {
-        // Add close button if not present
         if (!alert.querySelector('.alert-close')) {
             const closeBtn = document.createElement('button');
             closeBtn.className = 'alert-close';
@@ -305,7 +304,6 @@ function initAlertHandlers() {
             alert.appendChild(closeBtn);
         }
         
-        // Auto-hide after 5 seconds
         setTimeout(() => {
             hideAlert(alert);
         }, 5000);
@@ -316,6 +314,8 @@ function initAlertHandlers() {
  * Hide alert
  */
 function hideAlert(alert) {
+    if (!alert || !alert.parentNode) return;
+    
     alert.style.opacity = '0';
     alert.style.transform = 'translateY(-10px)';
     alert.style.transition = 'all 0.3s ease';
@@ -346,17 +346,14 @@ function showAlert(message, type = 'info') {
         ">×</button>
     `;
     
-    // Insert at top of main content or body
     const main = document.querySelector('.main') || document.body;
     main.insertBefore(alertDiv, main.firstChild);
     
-    // Add close handler
     const closeBtn = alertDiv.querySelector('.alert-close');
     closeBtn.addEventListener('click', function() {
         hideAlert(alertDiv);
     });
     
-    // Auto-hide after 5 seconds
     setTimeout(() => {
         hideAlert(alertDiv);
     }, 5000);
@@ -369,7 +366,6 @@ function initPasswordToggle() {
     const passwordFields = document.querySelectorAll('input[type="password"]');
     
     passwordFields.forEach(field => {
-        // Create toggle button
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';
         toggleBtn.className = 'password-toggle';
@@ -385,7 +381,6 @@ function initPasswordToggle() {
             font-size: 1rem;
         `;
         
-        // Wrap field in relative container
         const wrapper = document.createElement('div');
         wrapper.style.position = 'relative';
         wrapper.style.display = 'inline-block';
@@ -395,7 +390,6 @@ function initPasswordToggle() {
         wrapper.appendChild(field);
         wrapper.appendChild(toggleBtn);
         
-        // Toggle password visibility
         toggleBtn.addEventListener('click', function() {
             if (field.type === 'password') {
                 field.type = 'text';
@@ -428,64 +422,289 @@ function initConfirmDialogs() {
  * Loading States
  */
 function showLoading(element) {
+    if (!element) return;
+    
     const originalText = element.textContent;
     element.setAttribute('data-original-text', originalText);
     element.textContent = 'Loading...';
     element.disabled = true;
-    element.classList.add('loading');
+    element.classList.add('btn-loading');
 }
 
 function hideLoading(element) {
+    if (!element) return;
+    
     const originalText = element.getAttribute('data-original-text');
     if (originalText) {
         element.textContent = originalText;
         element.removeAttribute('data-original-text');
     }
     element.disabled = false;
-    element.classList.remove('loading');
+    element.classList.remove('btn-loading');
 }
 
 /**
- * AJAX Helper Functions
+ * MENU PAGE FUNCTIONALITY - FIXED
  */
-function ajaxRequest(url, method = 'GET', data = null) {
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        
-        xhr.open(method, url, true);
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        
-        xhr.onload = function() {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    resolve(response);
-                } catch (e) {
-                    resolve(xhr.responseText);
-                }
-            } else {
-                reject(new Error('Request failed'));
+function initMenuFunctionality() {
+    // Add to cart functionality with safety checks
+    const addToCartButtons = document.querySelectorAll('.add-to-cart');
+    addToCartButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const itemId = button.getAttribute('data-item-id');
+            
+            if (!itemId) {
+                console.warn('No item ID found for add to cart button');
+                return;
             }
-        };
-        
-        xhr.onerror = function() {
-            reject(new Error('Network error'));
-        };
-        
-        if (data && method !== 'GET') {
-            if (typeof data === 'object') {
-                const formData = new URLSearchParams();
-                for (const key in data) {
-                    formData.append(key, data[key]);
+            
+            showLoading(button);
+            addToCartAjax(itemId, 1, button);
+        });
+    });
+    
+    // View details functionality
+    const viewDetailsButtons = document.querySelectorAll('.view-details');
+    viewDetailsButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const itemId = button.getAttribute('data-item-id');
+            if (itemId) {
+                loadItemDetails(itemId);
+            }
+        });
+    });
+    
+    // Auto-submit form on filter change
+    const filterSelects = document.querySelectorAll('#category, #price_range');
+    filterSelects.forEach(select => {
+        select.addEventListener('change', function() {
+            const form = document.querySelector('.filter-form');
+            if (form) {
+                form.submit();
+            }
+        });
+    });
+    
+    // Search input with debounce
+    const searchInput = document.getElementById('search');
+    if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                if (searchInput.value.length >= 3 || searchInput.value.length === 0) {
+                    const form = document.querySelector('.filter-form');
+                    if (form) {
+                        form.submit();
+                    }
                 }
-                xhr.send(formData);
-            } else {
-                xhr.send(data);
+            }, 500);
+        });
+    }
+}
+
+/**
+ * FIXED: Add to cart AJAX function
+ */
+function addToCartAjax(itemId, quantity, button) {
+    // Get CSRF token safely
+    const csrfToken = getCSRFToken();
+    if (!csrfToken) {
+        console.error('No CSRF token found');
+        hideLoading(button);
+        showAlert('Security error. Please refresh the page.', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('csrf_token', csrfToken);
+    formData.append('item_id', itemId);
+    formData.append('quantity', quantity);
+    
+    fetch('ajax_add_to_cart.php', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        hideLoading(button);
+        
+        if (data.success) {
+            showAlert(data.message, 'success');
+            updateCartCountDisplay(data.cart_count);
+            
+            button.classList.add('success-animation');
+            setTimeout(() => {
+                button.classList.remove('success-animation');
+            }, 600);
+        } else {
+            showAlert(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        hideLoading(button);
+        showAlert('Failed to add item to cart. Please try again.', 'error');
+    });
+}
+
+/**
+ * FIXED: Get CSRF token safely
+ */
+function getCSRFToken() {
+    // Try meta tag first
+    const metaToken = document.querySelector('meta[name="csrf-token"]');
+    if (metaToken) {
+        return metaToken.getAttribute('content');
+    }
+    
+    // Try form input
+    const tokenInput = document.querySelector('input[name="csrf_token"]');
+    if (tokenInput) {
+        return tokenInput.value;
+    }
+    
+    // Try hidden form
+    const csrfForm = document.getElementById('csrf-form');
+    if (csrfForm) {
+        const hiddenToken = csrfForm.querySelector('input[name="csrf_token"]');
+        if (hiddenToken) {
+            return hiddenToken.value;
+        }
+    }
+    
+    // Generate a temporary token for pages without CSRF
+    return 'temp_token_' + Date.now();
+}
+
+/**
+ * FIXED: Update cart count display
+ */
+function updateCartCountDisplay(count) {
+    const cartCountElement = document.getElementById('cart-count');
+    if (cartCountElement) {
+        if (count > 0) {
+            cartCountElement.textContent = count;
+            cartCountElement.classList.add('has-items');
+            cartCountElement.style.display = 'inline-block';
+        } else {
+            cartCountElement.classList.remove('has-items');
+            cartCountElement.style.display = 'none';
+        }
+    }
+}
+
+/**
+ * FIXED: Update cart count from server
+ */
+function updateCartCount() {
+    const cartCountElement = document.getElementById('cart-count');
+    if (!cartCountElement) return;
+    
+    // Determine correct AJAX path based on current location
+    let ajaxPath = getAjaxPath('get_cart_count.php');
+    
+    fetch(ajaxPath, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            updateCartCountDisplay(data.count);
+        } else {
+            console.log('Cart count: user not logged in or not customer');
+            cartCountElement.style.display = 'none';
+        }
+    })
+    .catch(error => {
+        console.log('Cart count update failed (normal for non-customers):', error.message);
+        cartCountElement.style.display = 'none';
+    });
+}
+
+/**
+ * FIXED: Get correct AJAX path based on current directory
+ */
+function getAjaxPath(filename) {
+    const path = window.location.pathname;
+    
+    if (path.includes('/menu/')) {
+        return `../ajax/${filename}`;
+    } else if (path.includes('/admin/') || path.includes('/auth/') || path.includes('/orders/')) {
+        return `../ajax/${filename}`;
+    } else {
+        return `ajax/${filename}`;
+    }
+}
+
+/**
+ * Load item details modal - FIXED
+ */
+function loadItemDetails(itemId) {
+    const modal = document.getElementById('item-details-modal');
+    const content = document.getElementById('item-details-content');
+    
+    if (!modal || !content) {
+        console.warn('Item details modal not found');
+        return;
+    }
+    
+    content.innerHTML = '<div class="spinner"></div>';
+    openModal('item-details-modal');
+    
+    const ajaxPath = getAjaxPath('get_item_details.php');
+    const formData = new FormData();
+    formData.append('item_id', itemId);
+    
+    fetch(ajaxPath, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            content.innerHTML = data.html;
+            
+            const addToCartBtn = content.querySelector('.add-to-cart-modal');
+            if (addToCartBtn) {
+                addToCartBtn.addEventListener('click', function() {
+                    const itemId = addToCartBtn.getAttribute('data-item-id');
+                    addToCartAjax(itemId, 1, addToCartBtn);
+                    
+                    setTimeout(() => {
+                        closeModal('item-details-modal');
+                    }, 1000);
+                });
             }
         } else {
-            xhr.send();
+            content.innerHTML = '<div class="alert alert-error">Failed to load item details.</div>';
         }
+    })
+    .catch(error => {
+        console.error('Error loading item details:', error);
+        content.innerHTML = '<div class="alert alert-error">Error loading item details.</div>';
     });
 }
 
@@ -541,209 +760,6 @@ function throttle(func, limit) {
     };
 }
 
-/**
- * MENU PAGE FUNCTIONALITY - Phase 3
- */
-function initMenuFunctionality() {
-    // Add to cart functionality (SINGLE EVENT LISTENER)
-    const addToCartButtons = document.querySelectorAll('.add-to-cart');
-    addToCartButtons.forEach(button => {
-        // Remove any existing listeners to prevent duplicates
-        button.replaceWith(button.cloneNode(true));
-    });
-    
-    // Re-select buttons after cloning
-    const freshAddToCartButtons = document.querySelectorAll('.add-to-cart');
-    freshAddToCartButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const itemId = button.getAttribute('data-item-id');
-            const itemName = button.getAttribute('data-item-name');
-            const itemPrice = button.getAttribute('data-item-price');
-            
-            // Show loading state
-            showLoading(button);
-            
-            // Add to cart via AJAX
-            addToCartAjax(itemId, 1, button);
-        });
-    });
-    
-    // View details functionality
-    const viewDetailsButtons = document.querySelectorAll('.view-details');
-    viewDetailsButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const itemId = button.getAttribute('data-item-id');
-            loadItemDetails(itemId);
-        });
-    });
-    
-    // Auto-submit form on filter change
-    const filterSelects = document.querySelectorAll('#category, #price_range');
-    filterSelects.forEach(select => {
-        select.addEventListener('change', function() {
-            document.querySelector('.filter-form').submit();
-        });
-    });
-    
-    // Search input with debounce
-    const searchInput = document.getElementById('search');
-    if (searchInput) {
-        let searchTimeout;
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                if (searchInput.value.length >= 3 || searchInput.value.length === 0) {
-                    document.querySelector('.filter-form').submit();
-                }
-            }, 500);
-        });
-    }
-}
-
-/**
- * Add to cart AJAX function
- */
-function addToCartAjax(itemId, quantity, button) {
-    const formData = new FormData();
-    formData.append('csrf_token', getCSRFToken());
-    formData.append('item_id', itemId);
-    formData.append('quantity', quantity);
-    
-    fetch('ajax_add_to_cart.php', {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        hideLoading(button);
-        
-        if (data.success) {
-            // Show success message
-            showAlert(data.message, 'success');
-            
-            // Update cart count
-            updateCartCountDisplay(data.cart_count);
-            
-            // Add success animation
-            button.classList.add('success-animation');
-            setTimeout(() => {
-                button.classList.remove('success-animation');
-            }, 600);
-        } else {
-            showAlert(data.message, 'error');
-        }
-    })
-    .catch(error => {
-        hideLoading(button);
-        showAlert('Failed to add item to cart. Please try again.', 'error');
-        console.error('Error:', error);
-    });
-}
-
-/**
- * Get CSRF token
- */
-function getCSRFToken() {
-    // Try to get from meta tag first
-    const metaToken = document.querySelector('meta[name="csrf-token"]');
-    if (metaToken) {
-        return metaToken.getAttribute('content');
-    }
-    
-    // Try to get from form
-    const tokenInput = document.querySelector('input[name="csrf_token"]');
-    if (tokenInput) {
-        return tokenInput.value;
-    }
-    
-    return 'temp_csrf_token';
-}
-
-/**
- * Update cart count display
- */
-function updateCartCountDisplay(count) {
-    const cartCountElement = document.getElementById('cart-count');
-    if (cartCountElement) {
-        if (count > 0) {
-            cartCountElement.textContent = count;
-            cartCountElement.classList.add('has-items');
-        } else {
-            cartCountElement.classList.remove('has-items');
-        }
-    }
-}
-
-/**
- * Update cart count from server
- */
-function updateCartCount() {
-    fetch('../ajax/get_cart_count.php', {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            updateCartCountDisplay(data.count);
-        }
-    })
-    .catch(error => {
-        console.error('Error updating cart count:', error);
-    });
-}
-
-/**
- * Load item details modal
- */
-function loadItemDetails(itemId) {
-    const modal = document.getElementById('item-details-modal');
-    const content = document.getElementById('item-details-content');
-    
-    if (!modal || !content) return;
-    
-    // Show loading state
-    content.innerHTML = '<div class="spinner"></div>';
-    openModal('item-details-modal');
-    
-    // Fetch item details
-    ajaxRequest('../ajax/get_item_details.php', 'POST', { item_id: itemId })
-        .then(response => {
-            if (response.success) {
-                content.innerHTML = response.html;
-                
-                // Bind add to cart button in modal
-                const addToCartBtn = content.querySelector('.add-to-cart-modal');
-                if (addToCartBtn) {
-                    addToCartBtn.addEventListener('click', function() {
-                        const itemId = addToCartBtn.getAttribute('data-item-id');
-                        
-                        addToCartAjax(itemId, 1, addToCartBtn);
-                        
-                        // Close modal after adding
-                        setTimeout(() => {
-                            closeModal('item-details-modal');
-                        }, 1000);
-                    });
-                }
-            } else {
-                content.innerHTML = '<div class="alert alert-error">Failed to load item details.</div>';
-            }
-        })
-        .catch(error => {
-            content.innerHTML = '<div class="alert alert-error">Error loading item details.</div>';
-            console.error('Error loading item details:', error);
-        });
-}
-
 // Export functions for global use
 window.FoodOrderingApp = {
     showAlert,
@@ -752,153 +768,11 @@ window.FoodOrderingApp = {
     closeModal,
     showLoading,
     hideLoading,
-    ajaxRequest,
     formatCurrency,
     formatDate,
     formatDateTime,
     debounce,
-    throttle
+    throttle,
+    updateCartCount,
+    updateCartCountDisplay
 };
-
-/**
- * Order Tracking Enhancement
- * Add to existing assets/js/script.js
- */
-
-// Auto-refresh order status every 30 seconds
-if (document.querySelector('.order-details-page')) {
-    setInterval(function() {
-        checkOrderStatus();
-    }, 30000);
-}
-
-/**
- * Check order status update
- */
-function checkOrderStatus() {
-    const orderPage = document.querySelector('.order-details-page');
-    if (!orderPage) return;
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    const orderId = urlParams.get('id');
-    
-    if (!orderId) return;
-    
-    fetch(`../ajax/check_order_status.php?order_id=${orderId}`, {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success && data.status_changed) {
-            // Show notification
-            showOrderStatusUpdate(data.new_status);
-            
-            // Optionally reload page to show updated status
-            setTimeout(() => {
-                location.reload();
-            }, 2000);
-        }
-    })
-    .catch(error => {
-        console.error('Error checking order status:', error);
-    });
-}
-
-/**
- * Show order status update notification
- */
-function showOrderStatusUpdate(newStatus) {
-    const notification = document.createElement('div');
-    notification.className = 'order-notification';
-    notification.innerHTML = `
-        <div class="notification-content">
-            <strong>Order Status Updated!</strong>
-            <p>Your order is now: ${newStatus}</p>
-        </div>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        notification.remove();
-    }, 5000);
-}
-
-// Enhanced cart count update for navigation
-function updateCartCountDisplay(count) {
-    const cartCountElement = document.getElementById('cart-count');
-    if (cartCountElement) {
-        if (count > 0) {
-            cartCountElement.textContent = count;
-            cartCountElement.classList.add('has-items');
-            cartCountElement.style.display = 'inline-block';
-        } else {
-            cartCountElement.classList.remove('has-items');
-            cartCountElement.style.display = 'none';
-        }
-    }
-}
-
-// Order management for admin
-if (document.querySelector('.admin-page')) {
-    // Auto-refresh admin dashboard every 60 seconds
-    setInterval(function() {
-        updateDashboardStats();
-    }, 60000);
-}
-
-/**
- * Update dashboard statistics
- */
-function updateDashboardStats() {
-    if (!document.querySelector('.dashboard-page')) return;
-    
-    fetch('../ajax/get_dashboard_stats.php', {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Update metric cards
-            updateMetricCard('total_orders_today', data.stats.total_orders_today);
-            updateMetricCard('pending_orders', data.stats.pending_orders);
-        }
-    })
-    .catch(error => {
-        console.error('Error updating dashboard:', error);
-    });
-}
-
-/**
- * Update metric card value
- */
-function updateMetricCard(metric, value) {
-    const element = document.querySelector(`[data-metric="${metric}"] .metric-number`);
-    if (element && element.textContent !== value.toString()) {
-        element.textContent = value;
-        element.parentElement.classList.add('updated');
-        setTimeout(() => {
-            element.parentElement.classList.remove('updated');
-        }, 1000);
-    }
-}
-
-// Print order functionality
-function printOrder() {
-    window.print();
-}
-
-// Add to global app object
-window.FoodOrderingApp = window.FoodOrderingApp || {};
-Object.assign(window.FoodOrderingApp, {
-    checkOrderStatus,
-    updateCartCountDisplay,
-    printOrder
-});
