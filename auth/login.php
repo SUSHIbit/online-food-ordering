@@ -126,13 +126,6 @@ include '../includes/header.php';
             </div>
         <?php endif; ?>
         
-        <!-- Demo Credentials Info -->
-        <div class="alert alert-info">
-            <strong>Demo Credentials:</strong><br>
-            <strong>Admin:</strong> admin / admin123<br>
-            <strong>Customer:</strong> Register a new account or use any registered email
-        </div>
-        
         <!-- Login Form -->
         <form method="POST" action="" data-validate novalidate>
             <!-- CSRF Token -->
@@ -256,20 +249,6 @@ include '../includes/header.php';
     white-space: nowrap;
 }
 
-.demo-credentials {
-    background-color: #f0f9ff;
-    border: 1px solid #bae6fd;
-    color: #0c4a6e;
-    padding: 1rem;
-    border-radius: 0.375rem;
-    margin-bottom: 1.5rem;
-    font-size: 0.875rem;
-}
-
-.demo-credentials strong {
-    color: #075985;
-}
-
 /* Rate limiting warning */
 .rate-limit-warning {
     background-color: #fef3c7;
@@ -333,23 +312,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
-    // Auto-login demo functionality
-    const demoButtons = document.querySelectorAll('.demo-login');
-    demoButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            const role = button.getAttribute('data-role');
-            
-            if (role === 'admin') {
-                document.getElementById('login').value = 'admin';
-                document.getElementById('password').value = 'admin123';
-            }
-            
-            // Auto-submit form
-            form.submit();
-        });
-    });
     
     // Forgot password form handler
     const forgotForm = document.getElementById('forgot-password-form');

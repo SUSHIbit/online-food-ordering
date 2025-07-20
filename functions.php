@@ -1,7 +1,7 @@
 <?php
 /**
  * Complete Functions File - Online Food Ordering System
- * Updated with Auto Image Compression + Payment Management - FULL VERSION
+ * FIXED VERSION - With Working Image Upload
  */
 
 /**
@@ -122,18 +122,17 @@ function getUserByUsername($username) {
  */
 function emailExists($email, $excludeUserId = null) {
     global $conn;
-    $sql = "SELECT user_id FROM users WHERE email = ?";
-    $params = [$email];
-    $types = "s";
     
     if ($excludeUserId) {
-        $sql .= " AND user_id != ?";
-        $params[] = $excludeUserId;
-        $types .= "i";
+        $sql = "SELECT user_id FROM users WHERE email = ? AND user_id != ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("si", $email, (int)$excludeUserId);
+    } else {
+        $sql = "SELECT user_id FROM users WHERE email = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $email);
     }
     
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
     return $result->num_rows > 0;
@@ -144,18 +143,17 @@ function emailExists($email, $excludeUserId = null) {
  */
 function usernameExists($username, $excludeUserId = null) {
     global $conn;
-    $sql = "SELECT user_id FROM users WHERE username = ?";
-    $params = [$username];
-    $types = "s";
     
     if ($excludeUserId) {
-        $sql .= " AND user_id != ?";
-        $params[] = $excludeUserId;
-        $types .= "i";
+        $sql = "SELECT user_id FROM users WHERE username = ? AND user_id != ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("si", $username, (int)$excludeUserId);
+    } else {
+        $sql = "SELECT user_id FROM users WHERE username = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $username);
     }
     
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
     return $result->num_rows > 0;
@@ -319,18 +317,28 @@ function createCategory($categoryData) {
         return false;
     }
     
-    $stmt = $conn->prepare("INSERT INTO categories (category_name, description, sort_order) VALUES (?, ?, ?)");
-    $stmt->bind_param("ssi", 
-        $categoryData['category_name'],
-        $categoryData['description'],
-        $categoryData['sort_order'] ?? 0
-    );
+    $categoryName = $categoryData['category_name'];
+    $description = isset($categoryData['description']) ? $categoryData['description'] : '';
+    $sortOrder = isset($categoryData['sort_order']) ? (int)$categoryData['sort_order'] : 0;
     
-    if ($stmt->execute()) {
-        return $stmt->insert_id;
+    $stmt = $conn->prepare("INSERT INTO categories (category_name, description, sort_order) VALUES (?, ?, ?)");
+    
+    if (!$stmt) {
+        error_log("Prepare failed: " . $conn->error);
+        return false;
     }
     
-    return false;
+    $stmt->bind_param("ssi", $categoryName, $description, $sortOrder);
+    
+    if ($stmt->execute()) {
+        $insertId = $stmt->insert_id;
+        $stmt->close();
+        return $insertId;
+    } else {
+        error_log("Execute failed: " . $stmt->error);
+        $stmt->close();
+        return false;
+    }
 }
 
 /**
@@ -339,15 +347,29 @@ function createCategory($categoryData) {
 function updateCategory($categoryId, $categoryData) {
     global $conn;
     
-    $stmt = $conn->prepare("UPDATE categories SET category_name = ?, description = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE category_id = ?");
-    $stmt->bind_param("ssii", 
-        $categoryData['category_name'],
-        $categoryData['description'],
-        $categoryData['sort_order'] ?? 0,
-        $categoryId
-    );
+    $categoryName = $categoryData['category_name'];
+    $description = isset($categoryData['description']) ? $categoryData['description'] : '';
+    $sortOrder = isset($categoryData['sort_order']) ? (int)$categoryData['sort_order'] : 0;
+    $categoryId = (int)$categoryId;
     
-    return $stmt->execute();
+    $stmt = $conn->prepare("UPDATE categories SET category_name = ?, description = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE category_id = ?");
+    
+    if (!$stmt) {
+        error_log("Prepare failed: " . $conn->error);
+        return false;
+    }
+    
+    $stmt->bind_param("ssii", $categoryName, $description, $sortOrder, $categoryId);
+    
+    if ($stmt->execute()) {
+        $result = $stmt->affected_rows > 0;
+        $stmt->close();
+        return $result;
+    } else {
+        error_log("Execute failed: " . $stmt->error);
+        $stmt->close();
+        return false;
+    }
 }
 
 /**
@@ -356,7 +378,6 @@ function updateCategory($categoryId, $categoryData) {
 function deleteCategory($categoryId) {
     global $conn;
     
-    // Check if category has menu items
     $stmt = $conn->prepare("SELECT COUNT(*) as count FROM menu_items WHERE category_id = ?");
     $stmt->bind_param("i", $categoryId);
     $stmt->execute();
@@ -378,21 +399,16 @@ function deleteCategory($categoryId) {
 function categoryNameExists($categoryName, $excludeCategoryId = null) {
     global $conn;
     
-    $sql = "SELECT category_id FROM categories WHERE category_name = ?";
-    $params = [$categoryName];
-    $types = "s";
+    $categoryName = mysqli_real_escape_string($conn, $categoryName);
+    $sql = "SELECT category_id FROM categories WHERE category_name = '$categoryName'";
     
     if ($excludeCategoryId) {
-        $sql .= " AND category_id != ?";
-        $params[] = $excludeCategoryId;
-        $types .= "i";
+        $excludeCategoryId = (int)$excludeCategoryId;
+        $sql .= " AND category_id != $excludeCategoryId";
     }
     
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    return $result->num_rows > 0;
+    $result = $conn->query($sql);
+    return $result && $result->num_rows > 0;
 }
 
 // ============================================================================
@@ -403,51 +419,84 @@ function categoryNameExists($categoryName, $excludeCategoryId = null) {
  * Auto-compress image during upload
  */
 function autoCompressImage($sourceImage, $destination, $quality = 80, $maxWidth = 800) {
-    $originalWidth = imagesx($sourceImage);
-    $originalHeight = imagesy($sourceImage);
-    
-    if ($originalWidth > $maxWidth) {
-        $newWidth = $maxWidth;
-        $newHeight = intval(($originalHeight * $maxWidth) / $originalWidth);
-    } else {
-        $newWidth = $originalWidth;
-        $newHeight = $originalHeight;
+    if (!$sourceImage) {
+        return false;
     }
     
-    $newImage = imagecreatetruecolor($newWidth, $newHeight);
-    
-    imagealphablending($newImage, false);
-    imagesavealpha($newImage, true);
-    $transparent = imagecolorallocatealpha($newImage, 255, 255, 255, 127);
-    imagefilledrectangle($newImage, 0, 0, $newWidth, $newHeight, $transparent);
-    
-    imagecopyresampled(
-        $newImage, $sourceImage,
-        0, 0, 0, 0,
-        $newWidth, $newHeight,
-        $originalWidth, $originalHeight
-    );
-    
-    $result = imagejpeg($newImage, $destination, $quality);
-    imagedestroy($newImage);
-    
-    return $result;
+    try {
+        $originalWidth = imagesx($sourceImage);
+        $originalHeight = imagesy($sourceImage);
+        
+        if (!$originalWidth || !$originalHeight) {
+            return false;
+        }
+        
+        if ($originalWidth > $maxWidth) {
+            $newWidth = $maxWidth;
+            $newHeight = intval(($originalHeight * $maxWidth) / $originalWidth);
+        } else {
+            $newWidth = $originalWidth;
+            $newHeight = $originalHeight;
+        }
+        
+        $newImage = imagecreatetruecolor($newWidth, $newHeight);
+        if (!$newImage) {
+            return false;
+        }
+        
+        imagealphablending($newImage, false);
+        imagesavealpha($newImage, true);
+        $transparent = imagecolorallocatealpha($newImage, 255, 255, 255, 127);
+        imagefilledrectangle($newImage, 0, 0, $newWidth, $newHeight, $transparent);
+        
+        $resizeResult = imagecopyresampled(
+            $newImage, $sourceImage,
+            0, 0, 0, 0,
+            $newWidth, $newHeight,
+            $originalWidth, $originalHeight
+        );
+        
+        if (!$resizeResult) {
+            imagedestroy($newImage);
+            return false;
+        }
+        
+        $result = imagejpeg($newImage, $destination, $quality);
+        imagedestroy($newImage);
+        
+        return $result;
+        
+    } catch (Exception $e) {
+        error_log("Image compression error: " . $e->getMessage());
+        return false;
+    }
 }
 
 /**
- * Upload menu item image with AUTO-COMPRESSION
+ * FIXED: Upload menu item image
  */
 function uploadMenuImage($file) {
+    // Debug: Log function call
+    error_log("uploadMenuImage called with file: " . print_r($file, true));
+    
+    // Validate file input
     if (!isset($file['tmp_name']) || empty($file['tmp_name'])) {
-        error_log("Upload error: No file uploaded");
+        error_log("Upload error: No file uploaded or tmp_name empty");
         return false;
     }
     
     if ($file['error'] !== UPLOAD_ERR_OK) {
-        error_log("Upload error: " . $file['error']);
+        error_log("Upload error code: " . $file['error']);
         return false;
     }
     
+    // Check if file actually exists
+    if (!is_uploaded_file($file['tmp_name'])) {
+        error_log("Upload error: File is not a valid uploaded file");
+        return false;
+    }
+    
+    // Validate file type
     $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
     $fileType = $file['type'];
     
@@ -455,66 +504,90 @@ function uploadMenuImage($file) {
     $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     
     if (!in_array($fileType, $allowedTypes) && !in_array($extension, $allowedExtensions)) {
-        error_log("Upload error: Invalid file type - " . $fileType);
+        error_log("Upload error: Invalid file type - " . $fileType . " / " . $extension);
         return false;
     }
     
-    $maxSize = 10 * 1024 * 1024; // 10MB
+    // Validate file size (10MB max)
+    $maxSize = 10 * 1024 * 1024;
     if ($file['size'] > $maxSize) {
-        error_log("Upload error: File too large - " . $file['size']);
+        error_log("Upload error: File too large - " . formatBytes($file['size']));
         return false;
     }
     
+    // Create upload directory if it doesn't exist
     $uploadDir = 'assets/images/menu/';
     if (!is_dir($uploadDir)) {
         if (!mkdir($uploadDir, 0755, true)) {
             error_log("Upload error: Cannot create directory - " . $uploadDir);
             return false;
         }
+        error_log("Created directory: " . $uploadDir);
     }
     
-    $filename = 'menu_' . time() . '_' . uniqid() . '.jpg';
-    $filepath = $uploadDir . $filename;
-    
-    $sourceImage = null;
-    switch ($fileType) {
-        case 'image/jpeg':
-        case 'image/jpg':
-            $sourceImage = imagecreatefromjpeg($file['tmp_name']);
-            break;
-        case 'image/png':
-            $sourceImage = imagecreatefrompng($file['tmp_name']);
-            break;
-        case 'image/gif':
-            $sourceImage = imagecreatefromgif($file['tmp_name']);
-            break;
-    }
-    
-    if (!$sourceImage) {
-        error_log("Upload error: Cannot create image resource");
+    // Check directory permissions
+    if (!is_writable($uploadDir)) {
+        error_log("Upload error: Directory not writable - " . $uploadDir);
         return false;
     }
     
-    // AUTO-COMPRESS the image
-    if (autoCompressImage($sourceImage, $filepath, 80, 800)) {
-        imagedestroy($sourceImage);
-        
-        $originalSize = $file['size'];
-        $compressedSize = filesize($filepath);
-        $savings = round((($originalSize - $compressedSize) / $originalSize) * 100, 1);
-        error_log("Image compressed: $filename (saved {$savings}%)");
-        
-        return $filename;
-    } else {
-        imagedestroy($sourceImage);
-        
-        if (move_uploaded_file($file['tmp_name'], $filepath)) {
-            error_log("Upload success (no compression): " . $filepath);
+    // Generate unique filename
+    $filename = 'menu_' . time() . '_' . uniqid() . '.jpg';
+    $filepath = $uploadDir . $filename;
+    
+    error_log("Attempting to upload to: " . $filepath);
+    
+    // Try direct upload first (no compression)
+    if (move_uploaded_file($file['tmp_name'], $filepath)) {
+        // Verify file was created
+        if (file_exists($filepath)) {
+            $fileSize = filesize($filepath);
+            error_log("File uploaded successfully: " . $filename . " (Size: " . formatBytes($fileSize) . ")");
+            
+            // Try compression if GD is available
+            if (extension_loaded('gd') && function_exists('imagecreatefromjpeg')) {
+                $tempFilename = 'temp_' . $filename;
+                $tempFilepath = $uploadDir . $tempFilename;
+                
+                $sourceImage = null;
+                switch (strtolower($extension)) {
+                    case 'jpg':
+                    case 'jpeg':
+                        $sourceImage = @imagecreatefromjpeg($filepath);
+                        break;
+                    case 'png':
+                        $sourceImage = @imagecreatefrompng($filepath);
+                        break;
+                    case 'gif':
+                        $sourceImage = @imagecreatefromgif($filepath);
+                        break;
+                }
+                
+                if ($sourceImage && autoCompressImage($sourceImage, $tempFilepath, 80, 800)) {
+                    imagedestroy($sourceImage);
+                    
+                    // Replace original with compressed version
+                    if (file_exists($tempFilepath)) {
+                        unlink($filepath);
+                        rename($tempFilepath, $filepath);
+                        
+                        $compressedSize = filesize($filepath);
+                        $savings = round((($fileSize - $compressedSize) / $fileSize) * 100, 1);
+                        error_log("Image compressed: " . $filename . " (saved {$savings}%)");
+                    }
+                } elseif ($sourceImage) {
+                    imagedestroy($sourceImage);
+                }
+            }
+            
             return $filename;
         } else {
-            error_log("Upload error: Cannot move file to - " . $filepath);
+            error_log("Upload error: File moved but not found at destination");
             return false;
         }
+    } else {
+        error_log("Upload error: move_uploaded_file failed from " . $file['tmp_name'] . " to " . $filepath);
+        return false;
     }
 }
 
@@ -780,6 +853,7 @@ function createMenuItem($itemData) {
     global $conn;
     
     if (empty($itemData['item_name']) || empty($itemData['price']) || empty($itemData['category_id'])) {
+        error_log("Create menu item error: Missing required fields");
         return false;
     }
     
@@ -791,11 +865,16 @@ function createMenuItem($itemData) {
     $preparation_time = isset($itemData['preparation_time']) ? (int)$itemData['preparation_time'] : 15;
     $ingredients = isset($itemData['ingredients']) ? $itemData['ingredients'] : '';
     $allergens = isset($itemData['allergens']) ? $itemData['allergens'] : '';
-    $calories = isset($itemData['calories']) ? (int)$itemData['calories'] : null;
+    $calories = isset($itemData['calories']) && $itemData['calories'] ? (int)$itemData['calories'] : null;
     $is_featured = isset($itemData['is_featured']) ? 1 : 0;
     $sort_order = isset($itemData['sort_order']) ? (int)$itemData['sort_order'] : 0;
     
     $stmt = $conn->prepare("INSERT INTO menu_items (category_id, item_name, description, price, image_url, preparation_time, ingredients, allergens, calories, is_featured, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    
+    if (!$stmt) {
+        error_log("Create menu item error: Prepare failed - " . $conn->error);
+        return false;
+    }
     
     $stmt->bind_param("issdsissiii", 
         $category_id,
@@ -812,10 +891,15 @@ function createMenuItem($itemData) {
     );
     
     if ($stmt->execute()) {
-        return $stmt->insert_id;
+        $insertId = $stmt->insert_id;
+        $stmt->close();
+        error_log("Menu item created successfully: ID $insertId, Image: " . ($image_url ?? 'none'));
+        return $insertId;
+    } else {
+        error_log("Create menu item error: Execute failed - " . $stmt->error);
+        $stmt->close();
+        return false;
     }
-    
-    return false;
 }
 
 /**
@@ -832,12 +916,17 @@ function updateMenuItem($itemId, $itemData) {
     $preparation_time = isset($itemData['preparation_time']) ? (int)$itemData['preparation_time'] : 15;
     $ingredients = isset($itemData['ingredients']) ? $itemData['ingredients'] : '';
     $allergens = isset($itemData['allergens']) ? $itemData['allergens'] : '';
-    $calories = isset($itemData['calories']) ? (int)$itemData['calories'] : null;
+    $calories = isset($itemData['calories']) && $itemData['calories'] ? (int)$itemData['calories'] : null;
     $is_featured = isset($itemData['is_featured']) ? 1 : 0;
     $sort_order = isset($itemData['sort_order']) ? (int)$itemData['sort_order'] : 0;
     $item_id = (int)$itemId;
     
     $stmt = $conn->prepare("UPDATE menu_items SET category_id = ?, item_name = ?, description = ?, price = ?, image_url = ?, preparation_time = ?, ingredients = ?, allergens = ?, calories = ?, is_featured = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?");
+    
+    if (!$stmt) {
+        error_log("Update menu item error: Prepare failed - " . $conn->error);
+        return false;
+    }
     
     $stmt->bind_param("issdsissiiii", 
         $category_id,
@@ -854,7 +943,15 @@ function updateMenuItem($itemId, $itemData) {
         $item_id
     );
     
-    return $stmt->execute();
+    if ($stmt->execute()) {
+        $stmt->close();
+        error_log("Menu item updated successfully: ID $item_id, Image: " . ($image_url ?? 'none'));
+        return true;
+    } else {
+        error_log("Update menu item error: Execute failed - " . $stmt->error);
+        $stmt->close();
+        return false;
+    }
 }
 
 /**
@@ -1316,15 +1413,12 @@ function getPaymentStatistics() {
     
     $stats = [];
     
-    // Total pending payments
     $result = $conn->query("SELECT COUNT(*) as count FROM orders WHERE payment_status = 'pending'");
     $stats['pending_payments'] = $result->fetch_assoc()['count'];
     
-    // Pending payment amount
     $result = $conn->query("SELECT SUM(total_amount) as total FROM orders WHERE payment_status = 'pending'");
     $stats['pending_amount'] = $result->fetch_assoc()['total'] ?? 0;
     
-    // Delivered orders with pending payments
     $result = $conn->query("SELECT COUNT(*) as count FROM orders WHERE payment_status = 'pending' AND order_status = 'delivered'");
     $stats['delivered_unpaid'] = $result->fetch_assoc()['count'];
     
@@ -1332,7 +1426,7 @@ function getPaymentStatistics() {
 }
 
 /**
- * Get orders with pending payments (for admin dashboard)
+ * Get orders with pending payments
  */
 function getOrdersWithPendingPayments($limit = 10) {
     global $conn;
@@ -1406,7 +1500,6 @@ function getRecentOrders($limit = 10) {
 function addOrderStatusHistory($orderId, $status, $notes = '', $changedBy = null) {
     global $conn;
     
-    // If status is null, it means we're just adding a note (like payment confirmation)
     if ($status === null) {
         $stmt = $conn->prepare("INSERT INTO order_status_history (order_id, status, notes, changed_by) VALUES (?, 'payment_update', ?, ?)");
         $stmt->bind_param("isi", $orderId, $notes, $changedBy);
@@ -1528,8 +1621,6 @@ function uploadFile($file, $directory = 'assets/images/') {
  * Get low stock items (placeholder function for future inventory management)
  */
 function getLowStockItems($threshold = 10) {
-    // This is a placeholder function for future inventory management
-    // For now, return empty array since we don't have stock management yet
     return [];
 }
 
